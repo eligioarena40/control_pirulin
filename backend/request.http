@@ -1,0 +1,125 @@
+@api = http://localhost:5000/api
+
+### 1. Probar que el servidor responde
+GET {{api}}/health
+
+### ==========================================
+### USUARIOS (AUTH)
+### ==========================================
+
+### Registrar Dueño (Ejecutar una sola vez)
+POST {{api}}/usuarios/registro
+Content-Type: application/json
+
+{
+  "nombre": "Eligio",
+  "email": "eligioarena@admin.com",
+  "password": "25218379"
+}
+
+### Login Dueño (Guarda el token que te devuelve)
+POST {{api}}/usuarios/login
+Content-Type: application/json
+
+{
+  "email": "eligioarena@admin.com",
+  "password": "25218379"
+}
+
+### ==========================================
+### PRODUCTOS (PIRULÍN)
+### ==========================================
+
+### Obtener todos los productos
+GET {{api}}/productos
+
+### Crear un producto
+POST {{api}}/productos
+Content-Type: application/json
+
+{
+  "nombre": "Pirulín Clásico Grande",
+  "precio": 3.50,
+  "imagenUrl": "https://example.com/pirulin.jpg"
+}
+
+### Eliminar producto (reemplaza el ID por uno real de tu BD)
+DELETE {{api}}/productos/6af76157f085be9d91ed93f3
+
+
+### ==========================================
+### CLIENTES
+### ==========================================
+
+### Obtener todos los clientes
+GET {{api}}/clientes
+
+### Crear un cliente (con teléfono incluido)
+POST {{api}}/clientes
+Content-Type: application/json
+
+{
+  "nombre": "María Pérez",
+  "departamento": "Contabilidad",
+  "telefono": "+584121234567"
+}
+
+### Eliminar cliente (reemplaza el ID)
+DELETE {{api}}/clientes/6af7667823fdfa06f331fb11
+
+### ==========================================
+### ENTREGAS Y PAGOS
+### ==========================================
+
+### Obtener todas las entregas / deudas (incluye datos del cliente con su teléfono)
+GET {{api}}/entregas
+
+### Registrar nueva entrega (ej. fiado)
+POST {{api}}/entregas
+Content-Type: application/json
+
+{
+  "cliente": "6af76b2516a94a9211788b8b",
+  "producto": "6af7616df085be9d91ed93f4",
+  "cantidad": 2,
+  "montoTotal": 7.00,
+  "estadoPago": "pendiente",
+  "metodoPago": "por_definir",
+  "referenciaPago": ""
+}
+
+### Actualizar pago (cuando envían el capture de pago móvil)
+PUT {{api}}/entregas/6af76cfa1a2c3f2386b724fa/pago
+Content-Type: application/json
+
+{
+  "estadoPago": "pagado",
+  "metodoPago": "pago_movil",
+  "referenciaPago": "4321"
+}
+
+### Eliminar entrega
+DELETE {{api}}/entregas/6af76c961a2c3f2386b724f9
+
+### Actualizar pago con comprobante de imagen (Multipart)
+PUT {{api}}/entregas/6af76cfa1a2c3f2386b724fa/pago
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="estadoPago"
+
+pagado
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="metodoPago"
+
+pago_movil
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="referenciaPago"
+
+123456
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="comprobante"; filename="capture_prueba.jpg"
+Content-Type: image/jpeg
+
+< ./backend/uploads/pagobdv1.jpeg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--

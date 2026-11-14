@@ -1,0 +1,102 @@
+import Entrega from '../models/Entrega.js';
+import { getIo } from '../socket.js';
+
+// Obtener todas las entregas/deudas
+export const obtenerEntregas = async (req, res) => {
+  try {
+    const entregas = await Entrega.find()
+      .populate('cliente', 'nombre departamento telefono')
+      .populate('producto', 'nombre precio imagenUrl')
+      .sort({ createdAt: -1 });
+    res.json(entregas);
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al obtener entregas', error: error.message });
+  }
+};
+
+// Registrar nueva entrega (fiado o pagado al momento)
+export const crearEntrega = async (req, res) => {
+  try {
+    const { cliente, producto, cantidad, montoTotal, estadoPago, metodoPago, referenciaPago } = req.body;
+    
+    const nuevaEntrega = new Entrega({
+      cliente,
+      producto,
+      cantidad,
+      montoTotal,
+      estadoPago: estadoPago || 'pendiente',
+      metodoPago: metodoPago || 'por_definir',
+      referenciaPago: referenciaPago || ''
+    });
+
+    await nuevaEntrega.save();
+    
+    // Traer la entrega con los datos poblados incluyendo el teléfono
+    const entregaCompleta = await Entrega.findById(nuevaEntrega._id)
+      .populate('cliente', 'nombre departamento telefono')
+      .populate('producto', 'nombre precio imagenUrl');
+
+    // ⚡ Socket.IO
+    const io = getIo();
+    io.emit('entrega-actualizada', { accion: 'crear', entrega: entregaCompleta });
+
+    res.status(201).json(entregaCompleta);
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al registrar entrega', error: error.message });
+  }
+};
+
+// Actualizar pago (cuando te envían el capture por WhatsApp y marcas la deuda como pagada)
+export const actualizarPagoEntrega = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estadoPago, metodoPago, referenciaPago } = req.body;
+
+    // 1. Verificamos si se adjuntó una imagen mediante Multer y Cloudinary
+    const comprobanteUrl = req.file ? req.file.path : undefined;
+
+    // 2. Creamos el objeto con los campos básicos que se van a actualizar
+    const datosActualizacion = { 
+      estadoPago, 
+      metodoPago, 
+      referenciaPago 
+    };
+
+    // 3. Si el usuario subió una foto nueva, la agregamos al objeto de actualización
+    if (comprobanteUrl) {
+      datosActualizacion.comprobanteUrl = comprobanteUrl;
+    }
+
+    const entregaActualizada = await Entrega.findByIdAndUpdate(
+      id,
+      datosActualizacion,
+      { new: true }
+    )
+      .populate('cliente', 'nombre departamento telefono')
+      .populate('producto', 'nombre precio imagenUrl');
+
+    // ⚡ Socket.IO
+    const io = getIo();
+    io.emit('entrega-actualizada', { accion: 'actualizar', entrega: entregaActualizada });
+
+    res.json(entregaActualizada);
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al actualizar el pago', error: error.message });
+  }
+};
+
+// Eliminar registro de entrega
+export const eliminarEntrega = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Entrega.findByIdAndDelete(id);
+
+    // ⚡ Socket.IO
+    const io = getIo();
+    io.emit('entrega-actualizada', { accion: 'eliminar', id });
+
+    res.json({ mensaje: 'Entrega eliminada correctamente' });
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al eliminar entrega', error: error.message });
+  }
+};
