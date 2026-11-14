@@ -29,6 +29,35 @@ export const crearCliente = async (req, res) => {
   }
 };
 
+export const actualizarCliente = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre, departamento, telefono } = req.body;
+
+    const clienteActualizado = await Cliente.findByIdAndUpdate(
+      id,
+      { 
+        nombre, 
+        departamento, 
+        telefono: telefono || '' 
+      },
+      { new: true } // Retorna el documento ya actualizado
+    );
+
+    if (!clienteActualizado) {
+      return res.status(404).json({ mensaje: 'Cliente no encontrado' });
+    }
+
+    // Notificamos a todos los clientes conectados mediante WebSockets
+    const io = getIo();
+    io.emit('cliente-actualizado', { accion: 'actualizar', cliente: clienteActualizado });
+
+    res.json(clienteActualizado);
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al actualizar cliente', error: error.message });
+  }
+};
+
 export const eliminarCliente = async (req, res) => {
   try {
     const { id } = req.params;

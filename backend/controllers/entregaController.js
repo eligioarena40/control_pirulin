@@ -46,6 +46,30 @@ export const crearEntrega = async (req, res) => {
   }
 };
 
+export const actualizarEntrega = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const entregaActualizada = await Entrega.findByIdAndUpdate(
+      id,
+      req.body,
+      { new: true }
+    )
+      .populate('cliente', 'nombre departamento telefono')
+      .populate('producto', 'nombre precio imagenUrl'); // <--- ¡Asegúrate de agregar esto aquí!
+
+    if (!entregaActualizada) {
+      return res.status(404).json({ mensaje: 'Entrega no encontrada' });
+    }
+
+    const io = getIo();
+    io.emit('entrega-actualizada', { accion: 'actualizar', entrega: entregaActualizada });
+
+    res.json(entregaActualizada);
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al actualizar la entrega', error: error.message });
+  }
+};
+
 // Actualizar pago (cuando te envían el capture por WhatsApp y marcas la deuda como pagada)
 export const actualizarPagoEntrega = async (req, res) => {
   try {

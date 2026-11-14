@@ -33,18 +33,53 @@ Content-Type: application/json
 ### Obtener todos los productos
 GET {{api}}/productos
 
-### Crear un producto
+### Crear producto con imagen en Cloudinary
 POST {{api}}/productos
-Content-Type: application/json
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
 
-{
-  "nombre": "Pirulín Clásico Grande",
-  "precio": 3.50,
-  "imagenUrl": "https://example.com/pirulin.jpg"
-}
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="nombre"
+
+Pirulín Lata Grande
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="precio"
+
+3.50
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="stock"
+
+50
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="imagen"; filename="pagobdv1.jpeg"
+Content-Type: image/jpeg
+
+< ./uploads/lata_grande.png
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ==========================================
+### PRUEBAS DE PRODUCTOS (Actualizar)
+### ==========================================
+
+### Actualizar producto (Puedes enviar nuevos datos y/o nueva imagen con Multipart)
+PUT {{api}}/productos/6af837106106ad4012d1d166
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="nombre"
+
+Pirulín Premium Actualizado
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="precio"
+
+4.00
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="stock"
+
+30
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
 
 ### Eliminar producto (reemplaza el ID por uno real de tu BD)
-DELETE {{api}}/productos/6af76157f085be9d91ed93f3
+DELETE {{api}}/productos/6af837106106ad4012d1d166
 
 
 ### ==========================================
@@ -62,6 +97,20 @@ Content-Type: application/json
   "nombre": "María Pérez",
   "departamento": "Contabilidad",
   "telefono": "+584121234567"
+}
+
+### ==========================================
+### PRUEBAS DE CLIENTES (Actualizar y Eliminar)
+### ==========================================
+
+### Actualizar un cliente (Reemplaza el ID por uno real de tu base de datos)
+PUT {{api}}/clientes/6af76b2516a94a9211788b8b
+Content-Type: application/json
+
+{
+  "nombre": "Cliente Actualizado",
+  "departamento": "Ventas",
+  "telefono": "0412-1234567"
 }
 
 ### Eliminar cliente (reemplaza el ID)
@@ -86,6 +135,16 @@ Content-Type: application/json
   "estadoPago": "pendiente",
   "metodoPago": "por_definir",
   "referenciaPago": ""
+}
+
+### Actualizar datos generales de una entrega (Reemplaza el ID por uno real)
+PUT {{api}}/entregas/6af76cfa1a2c3f2386b724fa
+Content-Type: application/json
+
+{
+  "cantidad": 5,
+  "montoTotal": 17.50,
+  "estadoPago": "pendiente"
 }
 
 ### Actualizar pago (cuando envían el capture de pago móvil)
