@@ -2,8 +2,8 @@ import axios from 'axios';
 import { io } from 'socket.io-client';
 
 // URL base de tu backend Express
-const API_URL = 'http://localhost:5000/api';
-const SOCKET_URL = 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || "https://control-pirulin.onrender.com";
+const SOCKET_URL = import.meta.env.VITE_API_URL || "https://control-pirulin.onrender.com";
 
 // Instancia de Axios configurada
 export const api = axios.create({
