@@ -19,7 +19,7 @@ export default function Productos() {
   const fetchProductos = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/productos');
+      const res = await api.get('/api/productos');
       setProductos(res.data);
     } catch (error) {
       console.error('Error al cargar productos:', error);
@@ -78,11 +78,11 @@ export default function Productos() {
       }
 
       if (editId) {
-        await api.put(`/productos/${editId}`, formData, {
+        await api.put(`/api/productos/${editId}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       } else {
-        await api.post('/productos', formData, {
+        await api.post('/api/productos', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       }
@@ -101,7 +101,7 @@ export default function Productos() {
   const handleEliminar = async (id) => {
     if (!window.confirm('¿Seguro que deseas quitar este producto del catálogo?')) return;
     try {
-      await api.delete(`/productos/${id}`);
+      await api.delete(`/api/productos/${id}`);
       fetchProductos();
     } catch (error) {
       console.error('Error al eliminar:', error);

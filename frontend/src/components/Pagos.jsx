@@ -27,7 +27,7 @@ export default function Pagos() {
 
   const fetchClientes = async () => {
     try {
-      const res = await api.get('/clientes');
+      const res = await api.get('/api/clientes');
       setClientes(res.data);
     } catch (error) {
       console.error('Error al cargar clientes:', error);
@@ -65,7 +65,7 @@ export default function Pagos() {
         formData.append('comprobante', archivoComprobante);
       }
 
-      const res = await api.post('/pagos', formData, {
+      const res = await api.post('/api/pagos', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 

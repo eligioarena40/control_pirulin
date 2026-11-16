@@ -55,9 +55,9 @@ export default function Clientes() {
   const cargarDatosGenerales = async () => {
     try {
       const [resClientes, resEntregas, resPagos] = await Promise.all([
-        api.get("/clientes"),
-        api.get("/entregas"),
-        api.get("/pagos"),
+        api.get("/api/clientes"),
+        api.get("/api/entregas"),
+        api.get("/api/pagos"),
       ]);
       setClientes(resClientes.data);
       setTodasEntregas(resEntregas.data);
@@ -232,7 +232,7 @@ export default function Clientes() {
                             mensaje: `¿Estás seguro de eliminar al cliente ${cliente.nombre}? Esta acción no se puede deshacer.`,
                             onConfirm: async () => {
                               try {
-                                await api.delete(`/clientes/${cliente._id}`);
+                                await api.delete(`/api/clientes/${cliente._id}`);
                                 await cargarDatosGenerales();
                                 mostrarToast("Cliente eliminado con éxito");
                               } catch (error) {
@@ -383,12 +383,12 @@ export default function Clientes() {
                               mensaje: '¿Estás seguro de eliminar esta entrega pendiente? Esto actualizará la deuda del cliente.',
                               onConfirm: async () => {
                                 try {
-                                  await api.delete(`/entregas/${entregaId}`);
+                                  await api.delete(`/api/entregas/${entregaId}`);
 
                                   // Descargamos los datos frescos de la API
                                   const [resEntregas, resPagos] = await Promise.all([
-                                    api.get('/entregas'),
-                                    api.get('/pagos'),
+                                    api.get('/api/entregas'),
+                                    api.get('/api/pagos'),
                                   ]);
 
                                   setTodasEntregas(resEntregas.data);
@@ -525,7 +525,7 @@ export default function Clientes() {
               <button
                 onClick={async () => {
                   try {
-                    await api.put(`/clientes/${clienteModal._id}`, {
+                    await api.put(`/api/clientes/${clienteModal._id}`, {
                       nombre: formEdicionCliente.nombre,
                       departamento: formEdicionCliente.departamento,
                       telefono: formEdicionCliente.telefono,
@@ -606,7 +606,7 @@ export default function Clientes() {
               <button
                 onClick={async () => {
                   try {
-                    await api.put(`/entregas/${entregaModal._id}`, {
+                    await api.put(`/api/entregas/${entregaModal._id}`, {
                       cantidad: Number(formEdicionEntrega.cantidad),
                       total: Number(formEdicionEntrega.total),
                     });
@@ -798,7 +798,7 @@ export default function Clientes() {
                   <button
                     onClick={async () => {
                       try {
-                        await api.put(`/pagos/${reciboPagoModal._id}`, {
+                        await api.put(`/api/pagos/${reciboPagoModal._id}`, {
                           montoAbonado: Number(formEdicion.montoAbonado),
                           referenciaPago: formEdicion.referenciaPago,
                           montoBs: Number(formEdicion.montoBs),
@@ -860,12 +860,12 @@ export default function Clientes() {
                           "¿Estás seguro de eliminar este pago? Esto afectará los saldos y deudas del cliente.",
                         onConfirm: async () => {
                           try {
-                            await api.delete(`/pagos/${pagoId}`);
+                            await api.delete(`/api/pagos/${pagoId}`);
 
                             // Descargamos los datos frescos de la API
                             const [resEntregas, resPagos] = await Promise.all([
-                              api.get("/entregas"),
-                              api.get("/pagos"),
+                              api.get("/api/entregas"),
+                              api.get("/api/pagos"),
                             ]);
 
                             setTodasEntregas(resEntregas.data);

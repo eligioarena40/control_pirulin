@@ -23,8 +23,8 @@ export default function Historial() {
   const cargarHistorialGlobal = async () => {
     try {
       const [resEntregas, resPagos] = await Promise.all([
-        api.get('/entregas'),
-        api.get('/pagos'),
+        api.get('/api/entregas'),
+        api.get('/api/pagos'),
       ]);
 
       const entregas = resEntregas.data.map((e) => ({
