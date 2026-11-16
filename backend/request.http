@@ -114,8 +114,7 @@ Content-Type: application/json
 }
 
 ### Eliminar cliente (reemplaza el ID)
-DELETE {{api}}/clientes/6af7667823fdfa06f331fb11
-
+DELETE {{api}}/clientes/6af76b2516a94a9211788b8b
 ### ==========================================
 ### ENTREGAS Y PAGOS
 ### ==========================================
@@ -158,7 +157,7 @@ Content-Type: application/json
 }
 
 ### Eliminar entrega
-DELETE {{api}}/entregas/6af76c961a2c3f2386b724f9
+DELETE {{api}}/entregas/6afa27b88fd6cdb7ae1a1751
 
 ### Actualizar pago con comprobante de imagen (Multipart)
 PUT {{api}}/entregas/6af76cfa1a2c3f2386b724fa/pago

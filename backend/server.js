@@ -12,6 +12,7 @@ import productoRoutes from './routes/productoRoutes.js';
 import clienteRoutes from './routes/clienteRoutes.js';
 import entregaRoutes from './routes/entregaRoutes.js';
 import usuarioRoutes from './routes/usuarioRoutes.js';
+import pagoRoutes from './routes/pagoRoutes.js';
 
 dotenv.config();
 
@@ -26,8 +27,8 @@ const io = new Server(httpServer, {
   },
 });
 
-// ⚡ Inicializamos el socket globalmente para que los controladores lo usen con getIo()
-initSocket(httpServer); // O pasándole la instancia de `io` directamente
+// ⚡ Inicializamos el socket globalmente pasando la instancia de `io` correctamente
+initSocket(io);
 
 // Middlewares
 app.use(cors());
@@ -37,6 +38,7 @@ app.use('/api/productos', productoRoutes);
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/entregas', entregaRoutes);
 app.use('/api/usuarios', usuarioRoutes);
+app.use('/api/pagos', pagoRoutes);
 
 // Ruta de prueba en consola/navegador
 app.get("/api/health", (req, res) => {

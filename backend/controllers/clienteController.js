@@ -1,23 +1,49 @@
 import Cliente from '../models/Cliente.js';
+import Entrega from '../models/Entrega.js';
+import Pago from '../models/Pago.js';
 import { getIo } from '../socket.js';
 
+// Obtener clientes con su deuda real calculada (Entregas - Pagos)
 export const obtenerClientes = async (req, res) => {
   try {
-    const clientes = await Cliente.find().sort({ departamento: 1, nombre: 1 });
-    res.json(clientes);
+    const clientes = await Cliente.find().sort({ departamento: 1, nombre: 1 }).lean();
+    
+    // Recorremos cada cliente para calcular su deuda real de forma dinámica
+    const clientesConDeuda = await Promise.all(clientes.map(async (cliente) => {
+      // 1. Buscamos todas las entregas (compras) de este cliente
+      const entregasCliente = await Entrega.find({ cliente: cliente._id });
+      
+      // 2. Buscamos todos los pagos (abonos) independientes de este cliente
+      const pagosCliente = await Pago.find({ cliente: cliente._id });
+
+      // 3. Aplicamos la lógica de cálculo
+      const totalEntregas = entregasCliente.reduce((acc, curr) => acc + (curr.montoTotal || 0), 0);
+      const totalPagos = pagosCliente.reduce((acc, curr) => acc + (curr.montoAbonado || 0), 0);
+      const deudaReal = Math.max(0, totalEntregas - totalPagos);
+
+      return {
+        ...cliente,
+        deudaTotal: deudaReal // Enviamos la deuda real calculada al frontend
+      };
+    }));
+
+    res.json(clientesConDeuda);
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al obtener clientes', error: error.message });
   }
 };
 
+// Crear un nuevo cliente
 export const crearCliente = async (req, res) => {
   try {
-    const { nombre, departamento, telefono } = req.body; // <--- Agregamos telefono aquí
+    const { nombre, departamento, telefono } = req.body;
+    
     const nuevoCliente = new Cliente({ 
       nombre, 
       departamento, 
-      telefono: telefono || '' // Guardará el número o vacío si no se llena
+      telefono: telefono || '' 
     }); 
+
     await nuevoCliente.save();
 
     const io = getIo();
@@ -29,6 +55,7 @@ export const crearCliente = async (req, res) => {
   }
 };
 
+// Actualizar los datos de un cliente
 export const actualizarCliente = async (req, res) => {
   try {
     const { id } = req.params;
@@ -41,14 +68,13 @@ export const actualizarCliente = async (req, res) => {
         departamento, 
         telefono: telefono || '' 
       },
-      { new: true } // Retorna el documento ya actualizado
+      { new: true }
     );
 
     if (!clienteActualizado) {
       return res.status(404).json({ mensaje: 'Cliente no encontrado' });
     }
 
-    // Notificamos a todos los clientes conectados mediante WebSockets
     const io = getIo();
     io.emit('cliente-actualizado', { accion: 'actualizar', cliente: clienteActualizado });
 
@@ -58,6 +84,7 @@ export const actualizarCliente = async (req, res) => {
   }
 };
 
+// Eliminar un cliente del sistema
 export const eliminarCliente = async (req, res) => {
   try {
     const { id } = req.params;

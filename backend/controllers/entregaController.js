@@ -70,26 +70,39 @@ export const actualizarEntrega = async (req, res) => {
   }
 };
 
-// Actualizar pago (cuando te envían el capture por WhatsApp y marcas la deuda como pagada)
+// Actualizar pago (soporta abonos parciales y pagos totales correctamente)
 export const actualizarPagoEntrega = async (req, res) => {
   try {
     const { id } = req.params;
-    const { estadoPago, metodoPago, referenciaPago } = req.body;
+    const { metodoPago, referenciaPago, montoAbonado } = req.body;
 
-    // 1. Verificamos si se adjuntó una imagen mediante Multer y Cloudinary
-    const comprobanteUrl = req.file ? req.file.path : undefined;
-
-    // 2. Creamos el objeto con los campos básicos que se van a actualizar
-    const datosActualizacion = { 
-      estadoPago, 
-      metodoPago, 
-      referenciaPago 
-    };
-
-    // 3. Si el usuario subió una foto nueva, la agregamos al objeto de actualización
-    if (comprobanteUrl) {
-      datosActualizacion.comprobanteUrl = comprobanteUrl;
+    const entregaActual = await Entrega.findById(id);
+    if (!entregaActual) {
+      return res.status(404).json({ mensaje: 'Entrega no encontrada' });
     }
+
+    const comprobanteUrl = req.file ? req.file.path : entregaActual.comprobanteUrl;
+    
+    const montoNum = Number(montoAbonado) || entregaActual.montoTotal;
+    let nuevoMontoTotal = entregaActual.montoTotal;
+    let nuevoEstadoPago = 'pagado';
+
+    // Si el abono es menor a la deuda actual, restamos y dejamos la entrega como pendiente con el saldo restante
+    if (montoNum < entregaActual.montoTotal) {
+      nuevoMontoTotal = Number((entregaActual.montoTotal - montoNum).toFixed(2));
+      nuevoEstadoPago = 'pendiente';
+    } else {
+      nuevoMontoTotal = entregaActual.montoTotal; // O 0 si prefieres mantener el valor original liquidado
+      nuevoEstadoPago = 'pagado';
+    }
+
+    const datosActualizacion = { 
+      estadoPago: nuevoEstadoPago, 
+      montoTotal: nuevoMontoTotal,
+      metodoPago: metodoPago || entregaActual.metodoPago, 
+      referenciaPago: referenciaPago || entregaActual.referenciaPago,
+      comprobanteUrl
+    };
 
     const entregaActualizada = await Entrega.findByIdAndUpdate(
       id,
@@ -99,7 +112,6 @@ export const actualizarPagoEntrega = async (req, res) => {
       .populate('cliente', 'nombre departamento telefono')
       .populate('producto', 'nombre precio imagenUrl');
 
-    // ⚡ Socket.IO
     const io = getIo();
     io.emit('entrega-actualizada', { accion: 'actualizar', entrega: entregaActualizada });
 
