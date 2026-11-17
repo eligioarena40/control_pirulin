@@ -40,18 +40,18 @@ export default function App() {
       <nav 
         className={`${
           isHome 
-            ? 'absolute top-0 left-0 w-full z-50 bg-transparent border-none shadow-none py-3 px-3 sm:px-6' 
-            : 'bg-base-100 dark:bg-gray-900 shadow-sm border-b border-base-300 dark:border-gray-800 py-3.5 px-3 sm:px-6'
+            ? 'absolute top-0 left-0 w-full z-50 bg-transparent border-none shadow-none py-3.5 px-3 sm:px-6' 
+            : 'bg-base-100 dark:bg-gray-900 shadow-sm border-b border-base-300 dark:border-gray-800 py-4 px-3 sm:px-6'
         } flex justify-between items-center transition-colors duration-200`}
       >
         <div></div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Selector de temas con texto más cómodo */}
+        <div className="flex items-center gap-2 sm:gap-3.5">
+          {/* SELECTOR DE TEMAS AMPLIADO */}
           <select
             value={theme}
             onChange={(e) => setTheme(e.target.value)}
-            className={`select select-bordered select-sm text-xs sm:text-sm font-medium ${
+            className={`select select-bordered select-md text-sm sm:text-base font-medium px-3 ${
               isHome 
                 ? 'bg-black/50 backdrop-blur-md text-white border-white/30' 
                 : 'bg-base-100 dark:bg-gray-800'
@@ -66,28 +66,28 @@ export default function App() {
             <option value="dark" className="text-black">Oscuro</option>
           </select>
 
-          {/* Botón Sol / Luna */}
+          {/* BOTÓN SOL / LUNA AMPLIADO */}
           <button
             onClick={toggleLightDark}
-            className={`btn btn-sm btn-ghost btn-circle ${
+            className={`btn btn-md btn-ghost btn-circle ${
               isHome ? 'text-white hover:bg-white/20' : 'text-amber-700 dark:text-amber-400'
             }`}
             title={isDarkTheme ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
             aria-label="Alternar claro/oscuro"
           >
-            {isDarkTheme ? <Sun size={20} /> : <Moon size={20} />}
+            {isDarkTheme ? <Sun size={23} /> : <Moon size={23} />}
           </button>
 
-          {/* Botón Inicio en píldora con texto legible */}
+          {/* BOTÓN INICIO EN PÍLDORA */}
           <button
             onClick={() => setActiveTab('home')}
-            className={`btn btn-sm px-4 sm:px-5 rounded-full flex items-center gap-1.5 shadow-md transition-all text-xs sm:text-sm font-semibold ${
+            className={`btn px-5 sm:px-6 py-2.5 rounded-full flex items-center gap-2 shadow-lg transition-all text-sm sm:text-base font-bold ${
               isHome
-                ? 'bg-white/25 hover:bg-white/35 text-white border-white/40 backdrop-blur-md'
+                ? 'bg-white/30 hover:bg-white/40 text-white border border-white/50 backdrop-blur-md'
                 : 'bg-amber-600 hover:bg-amber-700 text-white border-none dark:bg-amber-500 dark:hover:bg-amber-600 dark:text-gray-950'
             }`}
           >
-            <HomeIcon size={16} />
+            <HomeIcon size={19} />
             <span>Inicio</span>
           </button>
         </div>

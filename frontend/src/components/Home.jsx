@@ -92,8 +92,8 @@ export default function Home({ setActiveTab }) {
                   <ArrowUpRight className="w-5 h-5 text-gray-500" />
                 </div>
 
-                {/* TÍTULOS CON LETRA AMPLIADA (text-base en móvil y text-lg/xl en pantallas grandes) */}
-                <h3 className="text-base sm:text-lg lg:text-xl font-extrabold text-gray-900 mb-1.5 leading-snug">
+                {/* TÍTULOS CON TAMAÑO AUMENTADO (text-lg en móvil y text-xl/2xl en tablets/pc) */}
+                <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-gray-900 mb-1.5 leading-snug">
                   {card.title}
                 </h3>
 
