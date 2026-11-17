@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, Home as HomeIcon } from 'lucide-react';
 import Home from './components/Home';
 import Productos from './components/Productos';
 import Entregas from './components/Entregas';
@@ -15,7 +15,7 @@ export default function App() {
     return localStorage.getItem('theme') || 'caramellatte';
   });
 
-  // Determina si el tema actual es oscuro para activar también las clases dark: de Tailwind
+  // Determina si el tema actual es oscuro
   const isDarkTheme = theme === 'coffee' || theme === 'dark';
 
   useEffect(() => {
@@ -30,57 +30,79 @@ export default function App() {
     }
   }, [theme, isDarkTheme]);
 
-  // Alterna rápidamente entre modo claro (caramellatte) y oscuro (coffee)
+  // Alterna rápidamente entre modo claro y oscuro
   const toggleLightDark = () => {
     setTheme(isDarkTheme ? 'caramellatte' : 'coffee');
   };
 
+  const isHome = activeTab === 'home';
+
   return (
-    <div className="min-h-screen bg-base-200 dark:bg-gray-950 text-base-content dark:text-gray-100 flex flex-col transition-colors duration-200">
-      <nav className="bg-base-100 dark:bg-gray-900 shadow-sm border-b border-base-300 dark:border-gray-800 px-4 sm:px-6 py-4 flex justify-between items-center transition-colors duration-200">
-        <h1
-          className="text-xl font-extrabold text-amber-700 dark:text-amber-500 cursor-pointer"
-          onClick={() => setActiveTab('home')}
-        >
-          Pirulín Control 🚀
-        </h1>
+    <div className="min-h-screen w-full bg-base-200 dark:bg-gray-950 text-base-content dark:text-gray-100 flex flex-col transition-colors duration-200 relative overflow-x-hidden">
+      
+      {/* 
+        NAVBAR INTELIGENTE:
+        - Si estás en Home: Es flotante, transparente y se coloca sobre el banner superior sin dejar espacios blancos arriba.
+        - Si estás en otra pestaña: Mantiene su diseño normal con fondo y bordes.
+      */}
+      <nav 
+        className={`${
+          isHome 
+            ? 'absolute top-0 left-0 w-full z-50 bg-transparent border-none shadow-none py-3 px-3 sm:px-6' 
+            : 'bg-base-100 dark:bg-gray-900 shadow-sm border-b border-base-300 dark:border-gray-800 py-3 px-3 sm:px-6'
+        } flex justify-between items-center transition-colors duration-200`}
+      >
+        {/* Espacio izquierdo limpio al haber retirado el título y cohete anterior */}
+        <div></div>
 
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Selector de temas de DaisyUI */}
           <select
             value={theme}
             onChange={(e) => setTheme(e.target.value)}
-            className="select select-bordered select-sm bg-base-100 dark:bg-gray-800 text-sm"
+            className={`select select-bordered select-sm text-xs sm:text-sm ${
+              isHome 
+                ? 'bg-black/40 backdrop-blur-md text-white border-white/30' 
+                : 'bg-base-100 dark:bg-gray-800'
+            }`}
             aria-label="Seleccionar tema"
           >
-            <option value="caramellatte">Caramelo</option>
-            <option value="coffee">Chocolate</option>
-            <option value="bumblebee">Amarillo</option>
-            <option value="corporate">Corporativo</option>
-            <option value="light">Claro</option>
-            <option value="dark">Oscuro</option>
+            <option value="caramellatte" className="text-black">Caramelo</option>
+            <option value="coffee" className="text-black">Chocolate</option>
+            <option value="bumblebee" className="text-black">Amarillo</option>
+            <option value="corporate" className="text-black">Corporativo</option>
+            <option value="light" className="text-black">Claro</option>
+            <option value="dark" className="text-black">Oscuro</option>
           </select>
 
           {/* Botón rápido Sol / Luna */}
           <button
             onClick={toggleLightDark}
-            className="btn btn-sm btn-ghost btn-circle text-amber-700 dark:text-amber-400"
+            className={`btn btn-sm btn-ghost btn-circle ${
+              isHome ? 'text-white hover:bg-white/20' : 'text-amber-700 dark:text-amber-400'
+            }`}
             title={isDarkTheme ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
             aria-label="Alternar claro/oscuro"
           >
-            {isDarkTheme ? <Sun size={20} /> : <Moon size={20} />}
+            {isDarkTheme ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
+          {/* Botón Inicio en formato PÍLDORA (rounded-full) */}
           <button
             onClick={() => setActiveTab('home')}
-            className="btn btn-sm btn-outline border-amber-600 text-amber-700 dark:border-amber-500 dark:text-amber-400 hover:bg-amber-600 hover:text-white dark:hover:bg-amber-500 dark:hover:text-gray-950"
+            className={`btn btn-sm px-4 rounded-full flex items-center gap-1.5 shadow-sm transition-all ${
+              isHome
+                ? 'bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-md'
+                : 'bg-amber-600 hover:bg-amber-700 text-white border-none dark:bg-amber-500 dark:hover:bg-amber-600 dark:text-gray-950 font-medium'
+            }`}
           >
-            Inicio
+            <HomeIcon size={15} />
+            <span>Inicio</span>
           </button>
         </div>
       </nav>
 
-      <main className="flex-1">
+      <main className="flex-1 w-full">
         {activeTab === 'home' && <Home setActiveTab={setActiveTab} />}
         {activeTab === 'entregas' && <Entregas />}
         {activeTab === 'clientes' && <Clientes />}
