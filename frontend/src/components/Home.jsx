@@ -60,7 +60,7 @@ export default function Home({ setActiveTab }) {
         {/* Capa oscura de contraste */}
         <div className="absolute inset-0 bg-black/45 z-10"></div>
 
-        {/* Textos con tamaño aumentado para celular */}
+        {/* Textos del Banner */}
         <div className="relative z-20 text-center space-y-2 max-w-xl mx-auto px-4">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight drop-shadow-md">
             Pirulín TITO
@@ -71,7 +71,7 @@ export default function Home({ setActiveTab }) {
         </div>
       </div>
 
-      {/* CUADRÍCULA DE TARJETAS CON TIPOGRAFÍA MÁS GRANDE */}
+      {/* CUADRÍCULA DE TARJETAS */}
       <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5 lg:gap-6">
           {menuCards.map((card, index) => {
@@ -91,12 +91,14 @@ export default function Home({ setActiveTab }) {
                   </div>
                   <ArrowUpRight className="w-5 h-5 text-gray-500" />
                 </div>
-                {/* Título de tarjeta más legible en pantallas pequeñas */}
-                <h3 className="text-sm sm:text-base lg:text-lg font-bold text-gray-900 mb-1.5 leading-snug">
+
+                {/* TÍTULOS CON LETRA AMPLIADA (text-base en móvil y text-lg/xl en pantallas grandes) */}
+                <h3 className="text-base sm:text-lg lg:text-xl font-extrabold text-gray-900 mb-1.5 leading-snug">
                   {card.title}
                 </h3>
-                {/* Descripción ampliada para evitar que se vea minúscula */}
-                <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
+
+                {/* Descripciones legibles */}
+                <p className="text-xs sm:text-sm lg:text-base text-gray-700 leading-relaxed">
                   {card.description}
                 </p>
               </div>
