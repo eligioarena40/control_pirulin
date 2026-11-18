@@ -263,6 +263,7 @@ export default function ModalesClientes({
                 type="button"
                 onClick={async () => {
                   try {
+                    // 1. Enviamos la petición PUT para actualizar en el servidor/base de datos
                     await api.put(`/api/entregas/${entregaModal._id}`, {
                       producto: formEdicionEntrega.producto,
                       cantidad: Number(formEdicionEntrega.cantidad),
@@ -270,20 +271,33 @@ export default function ModalesClientes({
                       montoTotal: Number(formEdicionEntrega.total),
                     });
                     
+                    // 2. Volvemos a solicitar los datos generales actualizados
                     const datosNuevos = await cargarDatosGenerales();
                     if (datosNuevos && clienteSeleccionado) {
-                      const clienteActualizado = datosNuevos.clientes.find((c) => c._id === clienteSeleccionado._id);
+                      // 3. Encontramos el cliente con su información fresca
+                      const clienteActualizado = datosNuevos.clientes.find(
+                        (c) => c._id === clienteSeleccionado._id
+                      );
                       if (clienteActualizado) {
                         setClienteSeleccionado(clienteActualizado);
-                        verHistorialCliente(clienteActualizado, datosNuevos.entregas, datosNuevos.pagos);
+                        // 4. Pintamos el historial en pantalla de inmediato
+                        verHistorialCliente(
+                          clienteActualizado, 
+                          datosNuevos.entregas, 
+                          datosNuevos.pagos
+                        );
                       }
                     }
 
+                    // 5. Cerramos el modal y limpiamos los estados de edición
                     setEntregaModal(null);
                     setEditandoEntregaId(null);
-                    mostrarToast("Entrega actualizada con éxito");
+                    
+                    if (typeof mostrarToast === "function") {
+                      mostrarToast("Entrega actualizada con éxito");
+                    }
                   } catch (err) {
-                    console.error(err);
+                    console.error("Error al actualizar la entrega:", err);
                     alert("Error al actualizar la entrega.");
                   }
                 }}

@@ -71,12 +71,16 @@ export default function Entregas() {
     }
 
     try {
+      // Guardamos cada producto con su propio subtotal independiente
       for (const [idProducto, cantidad] of Object.entries(carrito)) {
+        const prodInfo = productos.find(p => p._id === idProducto);
+        const subtotalProducto = prodInfo ? Number(prodInfo.precio) * cantidad : 0;
+
         await api.post('/api/entregas', {
           cliente: clienteSeleccionado._id,
           producto: idProducto,
           cantidad: cantidad,
-          montoTotal: calcularTotal(),
+          montoTotal: subtotalProducto, // <--- Aquí guardamos el subtotal correcto de este producto
           estadoPago: 'pendiente',
           metodoPago: 'pago_movil'
         });
@@ -139,18 +143,27 @@ export default function Entregas() {
         const props = ['name', 'tel'];
         const opts = { multiple: false };
         const contacto = await navigator.contacts.select(props, opts);
+        
         if (contacto && contacto.length > 0) {
-          const nuevo = {
-            _id: Date.now().toString(),
-            nombre: contacto[0].name[0] || 'Sin nombre',
+          const nombreContacto = contacto[0].name[0] || 'Sin nombre';
+          const telefonoContacto = contacto[0].tel[0] || '';
+
+          // 1. Guardamos el cliente directamente en la base de datos de MongoDB
+          const res = await api.post('/api/clientes', {
+            nombre: nombreContacto,
             departamento: 'General',
-            telefono: contacto[0].tel[0] || ''
-          };
-          setClientes([nuevo, ...clientes]);
-          setClienteSeleccionado(nuevo);
+            telefono: telefonoContacto
+          });
+
+          const clienteGuardado = res.data;
+
+          // 2. Actualizamos la lista y dejamos seleccionado el cliente real con su _id de MongoDB
+          setClientes([clienteGuardado, ...clientes]);
+          setClienteSeleccionado(clienteGuardado);
         }
       } catch (ex) {
-        console.log('No se pudo acceder', ex);
+        console.log('No se pudo acceder a los contactos', ex);
+        alert('No se pudo importar el contacto.');
       }
     } else {
       alert('Selección de contactos no disponible en este navegador.');

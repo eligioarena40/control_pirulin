@@ -60,17 +60,25 @@ export default function Clientes() {
         api.get("/api/clientes"),
         api.get("/api/entregas"),
         api.get("/api/pagos"),
-        api.get("/api/productos"), // <-- Cargamos los productos también
+        api.get("/api/productos"),
       ]);
       setClientes(resClientes.data);
       setTodasEntregas(resEntregas.data);
       setTodosPagos(resPagos.data);
       setProductos(resProductos.data);
+
+      // Retornamos los datos frescos para usarlos tras guardar
+      return {
+        clientes: resClientes.data,
+        entregas: resEntregas.data,
+        pagos: resPagos.data,
+      };
     } catch (error) {
       console.error("Error al cargar datos generales:", error);
+      return null;
     }
   };
-
+  
   const calcularDeudaCliente = (clienteId) => {
     const entregasCliente = todasEntregas.filter(
       (e) => (e.cliente?._id || e.cliente) === clienteId,
