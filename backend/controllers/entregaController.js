@@ -46,16 +46,28 @@ export const crearEntrega = async (req, res) => {
   }
 };
 
+// Actualizar entrega (con soporte para cambiar producto, cantidad y precio total)
 export const actualizarEntrega = async (req, res) => {
   try {
     const { id } = req.params;
+    const { producto, cantidad, total, montoTotal } = req.body;
+
+    // Unificamos el valor total sin importar si el frontend mandó 'total' o 'montoTotal'
+    const valorCalculado = total !== undefined ? total : montoTotal;
+
+    const datosParaActualizar = {
+      ...(producto && { producto }),
+      ...(cantidad !== undefined && { cantidad }),
+      ...(valorCalculado !== undefined && { montoTotal: valorCalculado })
+    };
+
     const entregaActualizada = await Entrega.findByIdAndUpdate(
       id,
-      req.body,
+      datosParaActualizar,
       { new: true }
     )
       .populate('cliente', 'nombre departamento telefono')
-      .populate('producto', 'nombre precio imagenUrl'); // <--- ¡Asegúrate de agregar esto aquí!
+      .populate('producto', 'nombre precio imagenUrl');
 
     if (!entregaActualizada) {
       return res.status(404).json({ mensaje: 'Entrega no encontrada' });
@@ -92,7 +104,7 @@ export const actualizarPagoEntrega = async (req, res) => {
       nuevoMontoTotal = Number((entregaActual.montoTotal - montoNum).toFixed(2));
       nuevoEstadoPago = 'pendiente';
     } else {
-      nuevoMontoTotal = entregaActual.montoTotal; // O 0 si prefieres mantener el valor original liquidado
+      nuevoMontoTotal = entregaActual.montoTotal;
       nuevoEstadoPago = 'pagado';
     }
 

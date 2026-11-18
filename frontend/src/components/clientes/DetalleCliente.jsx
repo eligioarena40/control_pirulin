@@ -1,5 +1,5 @@
-import React from 'react';
-import { Edit2, Trash2, ArrowLeft, ShoppingBag, CreditCard, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, ShoppingBag, CreditCard, FileText, MessageCircle, CheckCircle } from 'lucide-react';
 
 export default function DetalleCliente({
   clienteSeleccionado,
@@ -17,6 +17,8 @@ export default function DetalleCliente({
   verHistorialCliente,
   mostrarToast
 }) {
+  const [reciboVentaModal, setReciboVentaModal] = useState(null);
+
   const deudaTotalCalculada = historial.reduce((acc, item) => {
     if (item.tipo === "venta")
       return acc + (item.saldoPendiente || item.montoTotal || 0);
@@ -27,7 +29,6 @@ export default function DetalleCliente({
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-24">
-      {/* Botón de retorno moderno */}
       <button
         onClick={() => {
           setClienteSeleccionado(null);
@@ -38,7 +39,6 @@ export default function DetalleCliente({
         <ArrowLeft className="w-4 h-4 stroke-[2.5]" /> Volver a lista de clientes
       </button>
 
-      {/* Tarjeta Resumen del Cliente Mejorada */}
       <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-sm border border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative overflow-hidden">
         <div className="absolute left-0 top-0 bottom-0 w-2 bg-amber-500"></div>
         <div className="pl-2 space-y-1">
@@ -74,7 +74,6 @@ export default function DetalleCliente({
         </span>
       </div>
 
-      {/* Lista del Historial */}
       {historial.length === 0 ? (
         <div className="text-center py-16 bg-white dark:bg-gray-900 rounded-3xl border border-dashed border-gray-300 dark:border-gray-800 p-6">
           <p className="text-gray-500 text-sm font-medium">Este cliente no tiene transacciones registradas.</p>
@@ -134,55 +133,124 @@ export default function DetalleCliente({
                         <FileText className="w-4 h-4" /> Recibo
                       </button>
                     ) : (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => {
-                            setEntregaModal(item);
-                            setEditandoEntregaId(item._id);
-                            setFormEdicionEntrega({
-                              cantidad: item.cantidad || 1,
-                              total: item.total || item.montoTotal || 0,
-                            });
-                          }}
-                          className="btn btn-sm btn-square btn-ghost text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-xl"
-                          title="Actualizar Entrega"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            const entregaId = item._id;
-                            setConfirmarModal({
-                              titulo: 'Eliminar Venta / Entrega',
-                              mensaje: '¿Estás seguro de eliminar esta entrega pendiente? Esto actualizará la deuda del cliente.',
-                              onConfirm: async () => {
-                                try {
-                                  await api.delete(`/api/entregas/${entregaId}`);
-                                  const [resEntregas, resPagos] = await Promise.all([
-                                    api.get('/api/entregas'),
-                                    api.get('/api/pagos'),
-                                  ]);
-                                  verHistorialCliente(clienteSeleccionado, resEntregas.data, resPagos.data);
-                                  mostrarToast('Entrega eliminada con éxito');
-                                } catch (error) {
-                                  console.error('Error al eliminar entrega:', error);
-                                  alert('No se pudo eliminar la entrega.');
-                                }
-                              }
-                            });
-                          }}
-                          className="btn btn-sm btn-square btn-ghost text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl"
-                          title="Eliminar Entrega"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => setReciboVentaModal(item)}
+                        className="btn btn-sm bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border-none font-bold rounded-xl px-3.5"
+                        title="Ver Recibo de Venta"
+                      >
+                        <FileText className="w-4 h-4" /> Recibo
+                      </button>
                     )}
                   </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {reciboVentaModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-200 dark:border-gray-800 space-y-5 my-auto max-h-[90vh] overflow-y-auto">
+            
+            <div className="text-center space-y-2 pb-2 border-b border-gray-100 dark:border-gray-800">
+              <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                <CheckCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white">Comprobante de Venta</h3>
+              <p className="text-xs text-gray-400">{new Date(reciboVentaModal.fecha || reciboVentaModal.createdAt).toLocaleString()}</p>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-4 space-y-3 border border-gray-100 dark:border-gray-800 text-sm">
+              <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">Personal / Cliente</p>
+                  <p className="font-bold text-gray-800 dark:text-gray-200">{clienteSeleccionado.nombre}</p>
+                  <p className="text-xs text-amber-600 font-semibold">Dpto: {clienteSeleccionado.departamento || 'General'}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Producto Entregado</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{reciboVentaModal.descripcion || reciboVentaModal.producto?.nombre || "Producto"}</span>
+                  <span className="font-bold text-gray-900 dark:text-white">US$ {(reciboVentaModal.montoTotal || reciboVentaModal.total || 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-between items-center text-base">
+                <span className="font-bold text-gray-700 dark:text-gray-300">Total a Pagar:</span>
+                <span className="font-black text-emerald-600 text-lg">US$ {(reciboVentaModal.montoTotal || reciboVentaModal.total || 0).toFixed(2)}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                const mensaje = `📦 *COMPROBANTE DE VENTA - PIRULÍN*\n👤 Cliente: ${clienteSeleccionado.nombre}\n🏢 Dpto: ${clienteSeleccionado.departamento || "General"}\n🛒 Producto: ${reciboVentaModal.descripcion || "Producto"}\n💰 Total: US$ ${(reciboVentaModal.montoTotal || reciboVentaModal.total || 0).toFixed(2)}`;
+                const tlf = clienteSeleccionado.telefono ? clienteSeleccionado.telefono.replace(/\D/g, "") : "";
+                window.open(`https://wa.me/${tlf}?text=${encodeURIComponent(mensaje)}`, "_blank");
+              }}
+              className="w-full btn h-12 bg-emerald-600 hover:bg-emerald-700 text-white border-none rounded-2xl flex items-center justify-center gap-2 font-bold shadow-md"
+            >
+              <MessageCircle className="w-5 h-5" /> Compartir por WhatsApp
+            </button>
+
+            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">
+              <button
+                onClick={() => {
+                  const itemSeleccionado = reciboVentaModal;
+                  setReciboVentaModal(null);
+                  setEntregaModal(itemSeleccionado);
+                  setEditandoEntregaId(itemSeleccionado._id);
+                  setFormEdicionEntrega({
+                    producto: itemSeleccionado.producto?._id || itemSeleccionado.producto || "",
+                    cantidad: itemSeleccionado.cantidad || 1,
+                    total: itemSeleccionado.total || itemSeleccionado.montoTotal || 0,
+                  });
+                }}
+                className="btn h-11 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold text-xs rounded-xl border-none"
+              >
+                ✏️ Editar
+              </button>
+              
+              <button
+                onClick={() => {
+                  const entregaId = reciboVentaModal._id;
+                  const clienteActual = clienteSeleccionado;
+                  setReciboVentaModal(null);
+                  setConfirmarModal({
+                    titulo: 'Eliminar Venta / Entrega',
+                    mensaje: '¿Estás seguro de eliminar esta entrega pendiente? Esto actualizará la deuda del cliente.',
+                    onConfirm: async () => {
+                      try {
+                        await api.delete(`/api/entregas/${entregaId}`);
+                        const [resEntregas, resPagos] = await Promise.all([
+                          api.get('/api/entregas'),
+                          api.get('/api/pagos'),
+                        ]);
+                        verHistorialCliente(clienteActual, resEntregas.data, resPagos.data);
+                        mostrarToast('Entrega eliminada con éxito');
+                      } catch (error) {
+                        console.error('Error al eliminar entrega:', error);
+                        alert('No se pudo eliminar la entrega.');
+                      }
+                    }
+                  });
+                }}
+                className="btn h-11 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl border-none"
+              >
+                🗑️ Eliminar
+              </button>
+
+              <button
+                onClick={() => setReciboVentaModal(null)}
+                className="btn h-11 bg-gray-800 hover:bg-gray-900 text-white font-bold text-xs rounded-xl border-none"
+              >
+                Cerrar
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
     </div>

@@ -6,6 +6,7 @@ import ModalesClientes from "./ModalesClientes";
 
 export default function Clientes() {
   const [clientes, setClientes] = useState([]);
+  const [productos, setProductos] = useState([]); // <-- Nuevo estado para productos
   const [busqueda, setBusqueda] = useState("");
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [historial, setHistorial] = useState([]);
@@ -25,9 +26,11 @@ export default function Clientes() {
     montoAbonado: "",
     referenciaPago: "",
     montoBs: "",
+    nuevoComprobante: null,
   });
 
   const [formEdicionEntrega, setFormEdicionEntrega] = useState({
+    producto: "",
     cantidad: 1,
     total: 0,
   });
@@ -53,14 +56,16 @@ export default function Clientes() {
 
   const cargarDatosGenerales = async () => {
     try {
-      const [resClientes, resEntregas, resPagos] = await Promise.all([
+      const [resClientes, resEntregas, resPagos, resProductos] = await Promise.all([
         api.get("/api/clientes"),
         api.get("/api/entregas"),
         api.get("/api/pagos"),
+        api.get("/api/productos"), // <-- Cargamos los productos también
       ]);
       setClientes(resClientes.data);
       setTodasEntregas(resEntregas.data);
       setTodosPagos(resPagos.data);
+      setProductos(resProductos.data);
     } catch (error) {
       console.error("Error al cargar datos generales:", error);
     }
@@ -170,7 +175,6 @@ export default function Clientes() {
         />
       )}
 
-      {/* Renderizado de todos los modales y toasts auxiliares */}
       <ModalesClientes
         confirmarModal={confirmarModal}
         setConfirmarModal={setConfirmarModal}
@@ -187,6 +191,7 @@ export default function Clientes() {
         formEdicionEntrega={formEdicionEntrega}
         setFormEdicionEntrega={setFormEdicionEntrega}
         clientes={clientes}
+        productos={productos} // <-- Pasamos los productos al modal
         clienteSeleccionado={clienteSeleccionado}
         setClienteSeleccionado={setClienteSeleccionado}
         verHistorialCliente={verHistorialCliente}
