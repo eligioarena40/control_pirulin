@@ -3,7 +3,7 @@ import { Sun, Moon, Home as HomeIcon } from 'lucide-react';
 import Home from './components/Home';
 import Productos from './components/Productos';
 import Entregas from './components/Entregas';
-import Clientes from './components/Clientes';
+import Clientes from './components/clientes/Clientes';
 import Pagos from './components/Pagos';
 import Historial from './components/Historial';
 

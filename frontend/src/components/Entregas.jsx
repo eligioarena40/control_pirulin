@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, Users, ShoppingCart, Plus, Minus, Send, BookUser, CheckCircle, RotateCcw, MessageCircle } from 'lucide-react';
+import { Search, UserPlus, Users, ShoppingCart, Plus, Minus, Send, BookUser, CheckCircle, RotateCcw, MessageCircle, Image as ImageIcon } from 'lucide-react';
 import api from '../services/api';
 
 export default function Entregas() {
@@ -232,80 +232,103 @@ export default function Entregas() {
 
   // Vista principal de búsqueda de cliente y carrito
   return (
-    <div className="p-6 max-w-6xl mx-auto pb-32">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Registrar Venta / Entrega</h2>
-        <p className="text-sm text-gray-500">Selecciona el departamento del personal y arma el pedido</p>
+    <div className="w-full min-h-screen px-3 sm:px-6 lg:px-8 py-4 sm:py-6 max-w-6xl mx-auto pb-32 overflow-x-hidden">
+      
+      {/* TÍTULO PRINCIPAL */}
+      <div className="mb-6 bg-base-100 dark:bg-gray-900 p-4 sm:p-5 rounded-2xl shadow-sm border border-base-300 dark:border-gray-800">
+        <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 dark:text-white">
+          Registrar Venta / Entrega
+        </h2>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+          Selecciona el departamento del personal y arma el pedido
+        </p>
       </div>
 
       {!clienteSeleccionado ? (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mb-8 max-w-xl mx-auto">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+        <div className="bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 mb-8 max-w-xl mx-auto">
+          
+          <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100 dark:border-gray-800">
             <Users className="w-5 h-5 text-amber-600" />
-            1. Buscar Personal / Cliente por Nombre o Letra
-          </h3>
-
-          <div className="flex flex-wrap gap-2 mb-4">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                name="busqueda_personal_libre"
-                placeholder="Escribe el nombre..."
-                value={busquedaCliente}
-                onChange={(e) => setBusquedaCliente(e.target.value)}
-                className="input input-bordered w-full pl-10 bg-gray-50"
-              />
-            </div>
-            <button
-              onClick={abrirModalNuevo}
-              className="btn bg-amber-600 hover:bg-amber-700 text-white border-none flex items-center gap-1"
-            >
-              <UserPlus className="w-4 h-4" />
-              Nuevo
-            </button>
-            <button
-              onClick={handleAgregarDesdeContactos}
-              className="btn btn-outline border-amber-600 text-amber-700 hover:bg-amber-50 flex items-center gap-1"
-              title="Agregar desde contactos"
-            >
-              <BookUser className="w-4 h-4" />
-              Contactos
-            </button>
+            <h3 className="text-base sm:text-lg font-extrabold text-gray-900 dark:text-white">
+              1. Buscar Personal / Cliente
+            </h3>
           </div>
 
-          <div className="space-y-2 max-h-48 overflow-y-auto">
+          {/* BARRA DE BÚSQUEDA Y BOTONES ENGROSADOS */}
+          <div className="space-y-3.5 mb-6">
+            <div className="relative w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              <input
+                type="search"
+                autoComplete="off"
+                spellCheck="false"
+                placeholder="Escribe el nombre del personal..."
+                value={busquedaCliente}
+                onChange={(e) => setBusquedaCliente(e.target.value)}
+                className="w-full h-14 pl-12 pr-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:bg-white dark:focus:bg-gray-900 focus:outline-none text-base sm:text-lg font-semibold text-gray-900 dark:text-white rounded-2xl shadow-xs transition-all"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={abrirModalNuevo}
+                className="btn h-14 bg-amber-600 hover:bg-amber-700 text-white border-none flex items-center justify-center gap-2 rounded-2xl font-extrabold text-sm sm:text-base shadow-md"
+              >
+                <UserPlus className="w-5 h-5 stroke-[2.5]" />
+                Nuevo Cliente
+              </button>
+              <button
+                onClick={handleAgregarDesdeContactos}
+                className="btn h-14 btn-outline border-2 border-amber-600 text-amber-700 hover:bg-amber-600 hover:text-white hover:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-600 dark:hover:text-white flex items-center justify-center gap-2 rounded-2xl font-extrabold text-sm sm:text-base"
+                title="Agregar desde contactos"
+              >
+                <BookUser className="w-5 h-5 stroke-[2.5]" />
+                Contactos
+              </button>
+            </div>
+          </div>
+
+          {/* LISTA DE CLIENTES FILTRADOS */}
+          <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
             {clientes
               .filter((c) => c.nombre.toLowerCase().includes(busquedaCliente.toLowerCase()))
               .map((c) => (
                 <div
                   key={c._id || c.id}
                   onClick={() => setClienteSeleccionado(c)}
-                  className="p-3 bg-gray-50 hover:bg-amber-50 rounded-xl cursor-pointer flex justify-between items-center transition border border-transparent hover:border-amber-200"
+                  className="p-3.5 bg-gray-50 dark:bg-gray-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-2xl cursor-pointer flex justify-between items-center transition-all duration-200 border border-gray-100 dark:border-gray-800 hover:border-amber-300 shadow-2xs"
                 >
                   <div>
-                    <span className="font-medium text-gray-800 block">{c.nombre}</span>
-                    <span className="text-xs text-amber-700 font-semibold">Dpto: {c.departamento || 'General'}</span>
+                    <span className="font-extrabold text-gray-900 dark:text-white block text-base capitalize">
+                      {c.nombre}
+                    </span>
+                    <span className="text-xs text-amber-700 dark:text-amber-400 font-bold mt-0.5 inline-block">
+                      Dpto: {c.departamento || 'General'}
+                    </span>
                   </div>
-                  <span className="text-xs text-gray-500">{c.telefono || 'Sin teléfono'}</span>
+                  <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-900 px-2.5 py-1 rounded-lg border border-gray-100 dark:border-gray-800">
+                    {c.telefono || 'Sin teléfono'}
+                  </span>
                 </div>
               ))}
           </div>
         </div>
       ) : (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-8 flex justify-between items-center shadow-sm">
+        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-3xl p-5 mb-8 flex justify-between items-center shadow-sm">
           <div>
-            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Personal / Cliente Asignado</span>
-            <h3 className="text-xl font-extrabold text-gray-900">{clienteSeleccionado.nombre}</h3>
-            <p className="text-sm font-semibold text-amber-800">Dpto: {clienteSeleccionado.departamento || 'General'}</p>
-            <p className="text-xs text-gray-600">{clienteSeleccionado.telefono || 'Sin teléfono registrado'}</p>
+            <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Personal / Cliente Asignado</span>
+            <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white capitalize mt-0.5 leading-tight">
+              {clienteSeleccionado.nombre}
+            </h3>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mt-1">Dpto: {clienteSeleccionado.departamento || 'General'}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">{clienteSeleccionado.telefono || 'Sin teléfono registrado'}</p>
           </div>
           <button
             onClick={() => {
               setClienteSeleccionado(null);
               setCarrito({});
             }}
-            className="btn btn-sm btn-outline border-amber-600 text-amber-700 hover:bg-amber-600 hover:text-white"
+            className="btn sm:btn-md btn-outline border-amber-600 text-amber-700 hover:bg-amber-600 hover:text-white shrink-0 rounded-xl"
           >
             Cambiar Cliente
           </button>
@@ -314,63 +337,75 @@ export default function Entregas() {
 
       {clienteSeleccionado && (
         <div>
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-amber-600" />
-              2. Selecciona los productos para la venta
+          {/* Cabecera optimizada: 'para la venta' baja a la segunda línea en móvil */}
+          <div className="flex justify-between items-center gap-3 mb-5 w-full bg-base-100 dark:bg-gray-900 p-4 rounded-2xl border border-base-300 dark:border-gray-800">
+            <h3 className="text-sm sm:text-base lg:text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 leading-tight flex-1">
+              <ShoppingCart className="w-5 h-5 text-amber-600 shrink-0" />
+              <span>
+                2. Selecciona los productos <span className="block sm:inline">para la venta</span>
+              </span>
             </h3>
-            <div className="badge badge-lg bg-amber-600 text-white font-bold p-3">
+            <div className="badge badge-lg bg-emerald-600 text-white font-extrabold px-4 py-3.5 rounded-2xl shadow-sm border-none whitespace-nowrap shrink-0">
               Items en carrito: {Object.values(carrito).reduce((a, b) => a + b, 0)}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
             {productos.map((prod) => {
               const cantidadEnCarrito = carrito[prod._id] || 0;
 
               return (
                 <div
                   key={prod._id}
-                  className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between"
+                  className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between p-3 sm:p-4"
                 >
-                  <div className="h-40 bg-gray-100 flex items-center justify-center overflow-hidden">
-                    {prod.imagenUrl ? (
-                      <img src={prod.imagenUrl} alt={prod.nombre} className="w-full h-full object-cover" />
+                  {/* Imagen adaptativa unificada */}
+                  <div className="w-full pt-3 pb-1 bg-base-200/40 dark:bg-gray-800/40 rounded-xl flex items-center justify-center overflow-hidden relative px-2 mx-auto">
+                    {prod.imagenUrl && prod.imagenUrl !== 'https://example.com/default.jpg' ? (
+                      <img
+                        src={prod.imagenUrl}
+                        alt={prod.nombre}
+                        className="w-full h-auto max-h-32 sm:max-h-40 object-contain drop-shadow-md transition-transform duration-300 hover:scale-105"
+                      />
                     ) : (
-                      <ShoppingCart className="w-10 h-10 text-gray-300" />
+                      <ImageIcon className="w-12 h-12 text-gray-300 my-4" />
                     )}
                   </div>
 
-                  <div className="p-4 flex-1 flex flex-col justify-between">
+                  {/* Información y Precios con título maximizado */}
+                  <div className="pt-3 flex-1 flex flex-col justify-between border-t border-gray-100 dark:border-gray-800 mt-2">
                     <div>
-                      <h4 className="font-bold text-gray-800 leading-tight">{prod.nombre}</h4>
-                      <p className="text-emerald-600 font-extrabold text-lg mt-1">
+                      <h3 className="font-black text-gray-900 dark:text-gray-100 text-base sm:text-lg lg:text-xl leading-snug line-clamp-2">
+                        {prod.nombre}
+                      </h3>
+                      <p className="text-emerald-600 dark:text-emerald-400 font-extrabold text-sm sm:text-base lg:text-lg mt-1">
                         US$ {Number(prod.precio).toFixed(2)}
                       </p>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                    {/* Botón Agregar / Cantidad */}
+                    <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800">
                       {cantidadEnCarrito === 0 ? (
                         <button
                           onClick={() => cambiarCantidad(prod._id, 1)}
-                          className="w-full btn btn-sm bg-amber-600 hover:bg-amber-700 text-white border-none flex items-center justify-center gap-1"
+                          className="w-full btn py-3 sm:py-3.5 bg-amber-600 hover:bg-amber-700 text-white border-none flex items-center justify-center gap-2 rounded-xl font-extrabold text-xs sm:text-sm shadow-md"
                         >
-                          <Plus className="w-4 h-4" /> Agregar a Venta
+                          <Plus className="w-4 h-4 stroke-[3]" /> Agregar a Venta
                         </button>
                       ) : (
-                        <div className="flex items-center justify-between w-full bg-gray-50 rounded-xl p-1 border border-amber-300">
+                        <div className="flex items-center justify-between w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-1.5 border border-amber-300 shadow-inner">
                           <button
                             onClick={() => cambiarCantidad(prod._id, -1)}
-                            className="btn btn-sm btn-square btn-ghost text-rose-600"
+                            className="btn btn-sm sm:btn-md btn-square btn-ghost text-rose-600"
                           >
-                            <Minus className="w-4 h-4" />
+                            <Minus className="w-5 h-5 stroke-[3]" />
                           </button>
-                          <span className="font-extrabold text-lg text-gray-800 px-3">{cantidadEnCarrito}</span>
+                          <span className="font-black text-lg text-gray-900 dark:text-white px-3">{cantidadEnCarrito}</span>
                           <button
                             onClick={() => cambiarCantidad(prod._id, 1)}
-                            className="btn btn-sm btn-square btn-ghost text-emerald-600"
+                            className="btn btn-sm sm:btn-md btn-square btn-ghost text-emerald-600"
                           >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-5 h-5 stroke-[3]" />
                           </button>
                         </div>
                       )}
@@ -382,14 +417,14 @@ export default function Entregas() {
           </div>
 
           {Object.keys(carrito).length > 0 && (
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg p-4 z-40 flex justify-between items-center max-w-5xl mx-auto rounded-t-2xl px-8">
+            <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 shadow-2xl p-4 z-40 flex justify-between items-center max-w-5xl mx-auto rounded-t-3xl px-8">
               <div>
                 <p className="text-xs text-gray-500 uppercase font-semibold">Total a Pagar</p>
                 <p className="text-2xl font-extrabold text-emerald-600">US$ {calcularTotal().toFixed(2)}</p>
               </div>
               <button
                 onClick={handleConcretarVenta}
-                className="btn bg-emerald-600 hover:bg-emerald-700 text-white border-none text-lg px-8 py-3 rounded-xl shadow-md flex items-center gap-2"
+                className="btn bg-emerald-600 hover:bg-emerald-700 text-white border-none text-lg px-8 py-3.5 rounded-2xl shadow-md flex items-center gap-2"
               >
                 <Send className="w-5 h-5" />
                 Concretar Venta
@@ -400,49 +435,72 @@ export default function Entregas() {
       )}
 
       {modalClienteOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Registrar Personal / Cliente</h3>
-            <div className="space-y-3">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-200 dark:border-gray-800 space-y-5">
+            
+            <div className="border-b border-gray-100 dark:border-gray-800 pb-3">
+              <h3 className="text-xl font-extrabold text-gray-900 dark:text-white">
+                Registrar Personal / Cliente
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                Ingresa los datos para guardarlos en el sistema
+              </p>
+            </div>
+
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Nombre y Apellido</label>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
+                  Nombre y Apellido
+                </label>
                 <input
                   type="text"
+                  autoComplete="off"
                   placeholder="Ej. Eligio Arena"
                   value={nuevoNombre}
                   onChange={(e) => setNuevoNombre(e.target.value)}
-                  className="input input-bordered w-full bg-gray-50"
+                  className="w-full h-12 px-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:bg-white dark:focus:bg-gray-900 focus:outline-none text-sm font-semibold text-gray-900 dark:text-white rounded-xl shadow-2xs transition-all"
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Dpto (Departamento)</label>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
+                  Dpto (Departamento)
+                </label>
                 <input
                   type="text"
+                  autoComplete="off"
                   placeholder="Ej. Ventas, Administración..."
                   value={nuevoDepartamento}
                   onChange={(e) => setNuevoDepartamento(e.target.value)}
-                  className="input input-bordered w-full bg-gray-50"
+                  className="w-full h-12 px-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:bg-white dark:focus:bg-gray-900 focus:outline-none text-sm font-semibold text-gray-900 dark:text-white rounded-xl shadow-2xs transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono / WhatsApp</label>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
+                  Teléfono / WhatsApp
+                </label>
                 <input
                   type="text"
+                  autoComplete="off"
                   placeholder="Ej. 0412-1234567"
                   value={nuevoTelefono}
                   onChange={(e) => setNuevoTelefono(e.target.value)}
-                  className="input input-bordered w-full bg-gray-50"
+                  className="w-full h-12 px-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:bg-white dark:focus:bg-gray-900 focus:outline-none text-sm font-semibold text-gray-900 dark:text-white rounded-xl shadow-2xs transition-all"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3">
-                <button onClick={() => setModalClienteOpen(false)} className="btn btn-ghost btn-sm">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setModalClienteOpen(false)}
+                  className="btn h-11 px-5 btn-ghost font-bold text-gray-600 dark:text-gray-300 rounded-xl"
+                >
                   Cancelar
                 </button>
                 <button
+                  type="button"
                   onClick={async () => {
                     if (!nuevoNombre.trim()) return;
                     try {
@@ -460,7 +518,7 @@ export default function Entregas() {
                       alert('Error al registrar el cliente.');
                     }
                   }}
-                  className="btn btn-sm bg-amber-600 text-white border-none"
+                  className="btn h-11 px-6 bg-amber-600 hover:bg-amber-700 text-white border-none font-extrabold rounded-xl shadow-md"
                 >
                   Guardar y Seleccionar
                 </button>
