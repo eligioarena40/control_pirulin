@@ -47,7 +47,9 @@ export const crearCliente = async (req, res) => {
     await nuevoCliente.save();
 
     const io = getIo();
-    io.emit('cliente-actualizado', { accion: 'crear', cliente: nuevoCliente });
+    if (io) {
+      io.emit('cliente-actualizado', { accion: 'crear', cliente: nuevoCliente });
+    }
 
     res.status(201).json(nuevoCliente);
   } catch (error) {
@@ -76,7 +78,9 @@ export const actualizarCliente = async (req, res) => {
     }
 
     const io = getIo();
-    io.emit('cliente-actualizado', { accion: 'actualizar', cliente: clienteActualizado });
+    if (io) {
+      io.emit('cliente-actualizado', { accion: 'actualizar', cliente: clienteActualizado });
+    }
 
     res.json(clienteActualizado);
   } catch (error) {
@@ -84,16 +88,32 @@ export const actualizarCliente = async (req, res) => {
   }
 };
 
-// Eliminar un cliente del sistema
+// Eliminar un cliente del sistema y limpiar en cascada sus ventas y pagos
 export const eliminarCliente = async (req, res) => {
   try {
     const { id } = req.params;
+
+    const clienteEncontrado = await Cliente.findById(id);
+    if (!clienteEncontrado) {
+      return res.status(404).json({ mensaje: 'Cliente no encontrado' });
+    }
+
+    // 1. Borramos todas las entregas (ventas) asociadas a este cliente
+    await Entrega.deleteMany({ cliente: id });
+
+    // 2. Borramos todos los pagos asociados a este cliente
+    await Pago.deleteMany({ cliente: id });
+
+    // 3. Borramos al cliente de la base de datos
     await Cliente.findByIdAndDelete(id);
 
+    // 4. Notificamos en tiempo real
     const io = getIo();
-    io.emit('cliente-actualizado', { accion: 'eliminar', id });
+    if (io) {
+      io.emit('cliente-actualizado', { accion: 'eliminar', id });
+    }
 
-    res.json({ mensaje: 'Cliente eliminado correctamente' });
+    res.json({ mensaje: 'Cliente y todos sus registros asociados eliminados correctamente' });
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al eliminar cliente', error: error.message });
   }
