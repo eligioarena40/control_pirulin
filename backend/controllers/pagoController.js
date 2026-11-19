@@ -17,7 +17,7 @@ export const obtenerPagos = async (req, res) => {
 // Registrar un abono o pago independiente
 export const crearPago = async (req, res) => {
   try {
-    const { cliente, montoAbonado, montoBs, metodoPago, referenciaPago } = req.body;
+    const { cliente, montoAbonado, montoBs, metodoPago, referenciaPago, fechaPago } = req.body;
     const comprobanteUrl = req.file ? req.file.path : '';
 
     const nuevoPago = new Pago({
@@ -26,6 +26,7 @@ export const crearPago = async (req, res) => {
       montoBs: Number(montoBs) || 0,
       metodoPago: metodoPago || 'pago_movil',
       referenciaPago: referenciaPago || 'S/R',
+      fechaPago: fechaPago ? new Date(fechaPago) : new Date(),
       comprobanteUrl
     });
 
@@ -45,26 +46,37 @@ export const crearPago = async (req, res) => {
   }
 };
 
-// Actualizar un pago existente
+// Actualizar un pago existente (incluye fechaPago y reemplazo de comprobante)
 export const actualizarPago = async (req, res) => {
   try {
     const { id } = req.params;
-    const { montoAbonado, montoBs, metodoPago, referenciaPago } = req.body;
+    const { montoAbonado, montoBs, metodoPago, referenciaPago, fechaPago } = req.body;
+
+    const pagoActual = await Pago.findById(id);
+    if (!pagoActual) {
+      return res.status(404).json({ mensaje: 'Pago no encontrado' });
+    }
+
+    const datosActualizacion = {
+      ...(montoAbonado !== undefined && { montoAbonado: Number(montoAbonado) }),
+      ...(montoBs !== undefined && { montoBs: Number(montoBs) }),
+      ...(metodoPago !== undefined && { metodoPago }),
+      ...(referenciaPago !== undefined && { referenciaPago }),
+      ...(fechaPago !== undefined && { fechaPago: new Date(fechaPago) }),
+    };
+
+    if (req.file) {
+      if (pagoActual.comprobanteUrl) {
+        await eliminarImagenCloudinary(pagoActual.comprobanteUrl);
+      }
+      datosActualizacion.comprobanteUrl = req.file.path;
+    }
 
     const pagoActualizado = await Pago.findByIdAndUpdate(
       id,
-      {
-        ...(montoAbonado !== undefined && { montoAbonado: Number(montoAbonado) }),
-        ...(montoBs !== undefined && { montoBs: Number(montoBs) }),
-        ...(metodoPago !== undefined && { metodoPago }),
-        ...(referenciaPago !== undefined && { referenciaPago })
-      },
+      datosActualizacion,
       { new: true }
     ).populate('cliente', 'nombre departamento telefono');
-
-    if (!pagoActualizado) {
-      return res.status(404).json({ mensaje: 'Pago no encontrado' });
-    }
 
     const io = getIo();
     if (io) {

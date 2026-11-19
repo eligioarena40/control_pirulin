@@ -159,7 +159,7 @@ export default function ModalesClientes({
         </div>
       )}
 
-      {/* 📌 MODAL DE EDICIÓN DE ENTREGA (CON CÁLCULO AUTOMÁTICO DE PRECIO) */}
+      {/* 📌 MODAL DE EDICIÓN DE ENTREGA */}
       {entregaModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white dark:bg-gray-900 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-200 dark:border-gray-800 space-y-5 my-auto">
@@ -188,8 +188,6 @@ export default function ModalesClientes({
                     const nuevoProdId = e.target.value;
                     const prodSeleccionado = productos?.find((p) => p._id === nuevoProdId);
                     const nuevaCantidad = Number(formEdicionEntrega.cantidad) || 1;
-                    
-                    // Multiplicamos automáticamente el precio real del nuevo producto por la cantidad
                     const nuevoTotal = prodSeleccionado ? Number(prodSeleccionado.precio) * nuevaCantidad : formEdicionEntrega.total;
 
                     setFormEdicionEntrega({
@@ -221,7 +219,6 @@ export default function ModalesClientes({
                     const nuevaCant = Number(e.target.value) || 1;
                     const prodIdActual = typeof formEdicionEntrega.producto === "object" ? formEdicionEntrega.producto?._id : formEdicionEntrega.producto;
                     const prodSeleccionado = productos?.find((p) => p._id === prodIdActual);
-                    
                     const nuevoTotal = prodSeleccionado ? Number(prodSeleccionado.precio) * nuevaCant : formEdicionEntrega.total;
 
                     setFormEdicionEntrega({
@@ -263,7 +260,6 @@ export default function ModalesClientes({
                 type="button"
                 onClick={async () => {
                   try {
-                    // 1. Enviamos la petición PUT para actualizar en el servidor/base de datos
                     await api.put(`/api/entregas/${entregaModal._id}`, {
                       producto: formEdicionEntrega.producto,
                       cantidad: Number(formEdicionEntrega.cantidad),
@@ -271,16 +267,13 @@ export default function ModalesClientes({
                       montoTotal: Number(formEdicionEntrega.total),
                     });
                     
-                    // 2. Volvemos a solicitar los datos generales actualizados
                     const datosNuevos = await cargarDatosGenerales();
                     if (datosNuevos && clienteSeleccionado) {
-                      // 3. Encontramos el cliente con su información fresca
                       const clienteActualizado = datosNuevos.clientes.find(
                         (c) => c._id === clienteSeleccionado._id
                       );
                       if (clienteActualizado) {
                         setClienteSeleccionado(clienteActualizado);
-                        // 4. Pintamos el historial en pantalla de inmediato
                         verHistorialCliente(
                           clienteActualizado, 
                           datosNuevos.entregas, 
@@ -289,7 +282,6 @@ export default function ModalesClientes({
                       }
                     }
 
-                    // 5. Cerramos el modal y limpiamos los estados de edición
                     setEntregaModal(null);
                     setEditandoEntregaId(null);
                     
@@ -311,7 +303,7 @@ export default function ModalesClientes({
         </div>
       )}
 
-      {/* 📌 MODAL DE COMPROBANTE DE PAGO */}
+      {/* 📌 MODAL DE COMPROBANTE DE PAGO (CON FECHA DE PAGO EDITABLE) */}
       {reciboPagoModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white dark:bg-gray-900 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-200 dark:border-gray-800 space-y-5 my-auto max-h-[90vh] overflow-y-auto">
@@ -321,7 +313,9 @@ export default function ModalesClientes({
                 <CheckCircle className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-black text-gray-900 dark:text-white">Comprobante de Pago</h3>
-              <p className="text-xs text-gray-400">{new Date(reciboPagoModal.createdAt).toLocaleString()}</p>
+              <p className="text-xs text-gray-400">
+                Registrado: {new Date(reciboPagoModal.createdAt).toLocaleString()}
+              </p>
             </div>
 
             <div className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-4 space-y-3 border border-gray-100 dark:border-gray-800 text-sm">
@@ -339,14 +333,26 @@ export default function ModalesClientes({
 
               {editandoPagoId === reciboPagoModal._id ? (
                 <div className="space-y-3 pt-1">
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase">Monto Abonado (US$)</label>
-                    <input
-                      type="number"
-                      value={formEdicion.montoAbonado}
-                      onChange={(e) => setFormEdicion({ ...formEdicion, montoAbonado: e.target.value })}
-                      className="w-full h-11 px-3 bg-white dark:bg-gray-900 border-2 border-emerald-500 rounded-xl font-bold text-gray-900 dark:text-white"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase">Monto Abonado (US$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formEdicion.montoAbonado}
+                        onChange={(e) => setFormEdicion({ ...formEdicion, montoAbonado: e.target.value })}
+                        className="w-full h-11 px-3 bg-white dark:bg-gray-900 border-2 border-emerald-500 rounded-xl font-bold text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase">Fecha del Pago</label>
+                      <input
+                        type="date"
+                        value={formEdicion.fechaPago || ""}
+                        onChange={(e) => setFormEdicion({ ...formEdicion, fechaPago: e.target.value })}
+                        className="w-full h-11 px-3 bg-white dark:bg-gray-900 border-2 border-emerald-500 rounded-xl font-bold text-gray-900 dark:text-white text-xs"
+                      />
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -362,6 +368,7 @@ export default function ModalesClientes({
                       <label className="block text-[10px] font-bold text-gray-500 uppercase">Monto Bs</label>
                       <input
                         type="number"
+                        step="0.01"
                         value={formEdicion.montoBs}
                         onChange={(e) => setFormEdicion({ ...formEdicion, montoBs: e.target.value })}
                         className="w-full h-11 px-3 bg-white dark:bg-gray-900 border-2 border-emerald-500 rounded-xl font-bold text-gray-900 dark:text-white"
@@ -390,6 +397,12 @@ export default function ModalesClientes({
                     <span className="text-gray-400 font-bold uppercase block text-[10px]">Monto Bs</span>
                     <span className="font-bold text-amber-600">Bs. {(reciboPagoModal.montoBs || 0).toFixed(2)}</span>
                   </div>
+                  <div className="col-span-2 pt-2 mt-1 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <span className="text-gray-400 font-bold uppercase text-[10px]">Fecha del Pago</span>
+                    <span className="font-extrabold text-gray-800 dark:text-gray-200">
+                      {new Date(reciboPagoModal.fechaPago || reciboPagoModal.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -417,7 +430,8 @@ export default function ModalesClientes({
             {editandoPagoId !== reciboPagoModal._id && clienteSeleccionado && (
               <button
                 onClick={() => {
-                  const mensaje = `📦 *COMPROBANTE DE PAGO - PIRULÍN*\n👤 Cliente: ${clienteSeleccionado.nombre}\n🏢 Dpto: ${clienteSeleccionado.departamento || "General"}\n💳 Método: ${(reciboPagoModal.metodoPago || "").replace("_", " ").toUpperCase()}\n📌 Referencia: ${reciboPagoModal.referenciaPago || "S/R"}\n🇻🇪 Monto Bs: Bs. ${(reciboPagoModal.montoBs || 0).toFixed(2)}\n💰 Abonado: US$ ${(reciboPagoModal.montoAbonado || 0).toFixed(2)}`;
+                  const fechaTexto = new Date(reciboPagoModal.fechaPago || reciboPagoModal.createdAt).toLocaleDateString();
+                  const mensaje = `📦 *COMPROBANTE DE PAGO - PIRULÍN*\n👤 Cliente: ${clienteSeleccionado.nombre}\n🏢 Dpto: ${clienteSeleccionado.departamento || "General"}\n📅 Fecha Pago: ${fechaTexto}\n💳 Método: ${(reciboPagoModal.metodoPago || "").replace("_", " ").toUpperCase()}\n📌 Referencia: ${reciboPagoModal.referenciaPago || "S/R"}\n🇻🇪 Monto Bs: Bs. ${(reciboPagoModal.montoBs || 0).toFixed(2)}\n💰 Abonado: US$ ${(reciboPagoModal.montoAbonado || 0).toFixed(2)}`;
                   const tlf = clienteSeleccionado.telefono ? clienteSeleccionado.telefono.replace(/\D/g, "") : "";
                   window.open(`https://wa.me/${tlf}?text=${encodeURIComponent(mensaje)}`, "_blank");
                 }}
@@ -437,6 +451,9 @@ export default function ModalesClientes({
                         formData.append("montoAbonado", Number(formEdicion.montoAbonado));
                         formData.append("referenciaPago", formEdicion.referenciaPago);
                         formData.append("montoBs", Number(formEdicion.montoBs));
+                        if (formEdicion.fechaPago) {
+                          formData.append("fechaPago", `${formEdicion.fechaPago}T12:00:00`);
+                        }
                         if (formEdicion.nuevoComprobante) {
                           formData.append("comprobante", formEdicion.nuevoComprobante);
                         }
@@ -476,11 +493,14 @@ export default function ModalesClientes({
                 <>
                   <button
                     onClick={() => {
+                      const fechaBase = reciboPagoModal.fechaPago || reciboPagoModal.createdAt;
+                      const fechaFormateada = fechaBase ? new Date(fechaBase).toISOString().split("T")[0] : "";
                       setEditandoPagoId(reciboPagoModal._id);
                       setFormEdicion({
                         montoAbonado: reciboPagoModal.montoAbonado || 0,
                         referenciaPago: reciboPagoModal.referenciaPago || "",
                         montoBs: reciboPagoModal.montoBs || 0,
+                        fechaPago: fechaFormateada,
                         nuevoComprobante: null,
                       });
                     }}

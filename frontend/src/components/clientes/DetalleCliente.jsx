@@ -100,7 +100,7 @@ export default function DetalleCliente({
                     {esVenta ? "🛒 Venta / Pendiente" : "💵 Abono / Pago"}
                   </span>
                   <span className="text-xs font-semibold text-gray-400">
-                    {new Date(item.fecha || item.createdAt).toLocaleDateString()}
+                    {new Date(item.fechaPago || item.fecha || item.createdAt).toLocaleDateString()}
                   </span>
                 </div>
 
@@ -127,18 +127,18 @@ export default function DetalleCliente({
                     {!esVenta ? (
                       <button
                         onClick={() => setReciboPagoModal(item)}
-                        className="btn btn-sm bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border-none font-bold rounded-xl px-3.5"
+                        className="btn btn-sm bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 border-2 border-emerald-500 text-emerald-700 dark:text-emerald-300 font-extrabold rounded-xl px-3.5"
                         title="Ver Comprobante"
                       >
-                        <FileText className="w-4 h-4" /> Recibo
+                        <FileText className="w-4 h-4 stroke-[2.5]" /> Recibo
                       </button>
                     ) : (
                       <button
                         onClick={() => setReciboVentaModal(item)}
-                        className="btn btn-sm bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border-none font-bold rounded-xl px-3.5"
+                        className="btn btn-sm bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 border-2 border-rose-500 text-rose-700 dark:text-rose-400 font-extrabold rounded-xl px-3.5"
                         title="Ver Recibo de Venta"
                       >
-                        <FileText className="w-4 h-4" /> Recibo
+                        <FileText className="w-4 h-4 stroke-[2.5]" /> Recibo
                       </button>
                     )}
                   </div>
@@ -154,7 +154,7 @@ export default function DetalleCliente({
           <div className="bg-white dark:bg-gray-900 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-200 dark:border-gray-800 space-y-5 my-auto max-h-[90vh] overflow-y-auto">
             
             <div className="text-center space-y-2 pb-2 border-b border-gray-100 dark:border-gray-800">
-              <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+              <div className="w-14 h-14 bg-rose-100 dark:bg-rose-950/50 text-rose-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
                 <CheckCircle className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-black text-gray-900 dark:text-white">Comprobante de Venta</h3>
@@ -180,7 +180,7 @@ export default function DetalleCliente({
 
               <div className="border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-between items-center text-base">
                 <span className="font-bold text-gray-700 dark:text-gray-300">Total a Pagar:</span>
-                <span className="font-black text-emerald-600 text-lg">US$ {(reciboVentaModal.montoTotal || reciboVentaModal.total || 0).toFixed(2)}</span>
+                <span className="font-black text-rose-600 text-lg">US$ {(reciboVentaModal.montoTotal || reciboVentaModal.total || 0).toFixed(2)}</span>
               </div>
             </div>
 

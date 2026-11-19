@@ -6,7 +6,7 @@ import ModalesClientes from "./ModalesClientes";
 
 export default function Clientes() {
   const [clientes, setClientes] = useState([]);
-  const [productos, setProductos] = useState([]); // <-- Nuevo estado para productos
+  const [productos, setProductos] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [historial, setHistorial] = useState([]);
@@ -26,6 +26,7 @@ export default function Clientes() {
     montoAbonado: "",
     referenciaPago: "",
     montoBs: "",
+    fechaPago: "",
     nuevoComprobante: null,
   });
 
@@ -67,7 +68,6 @@ export default function Clientes() {
       setTodosPagos(resPagos.data);
       setProductos(resProductos.data);
 
-      // Retornamos los datos frescos para usarlos tras guardar
       return {
         clientes: resClientes.data,
         entregas: resEntregas.data,
@@ -127,7 +127,7 @@ export default function Clientes() {
         .map((p) => ({
           ...p,
           tipo: "pago",
-          fecha: p.createdAt,
+          fecha: p.fechaPago || p.createdAt,
           descripcion: `Abono (${(p.metodoPago || "pago_movil").replace("_", " ")})`,
         }));
 
@@ -199,7 +199,7 @@ export default function Clientes() {
         formEdicionEntrega={formEdicionEntrega}
         setFormEdicionEntrega={setFormEdicionEntrega}
         clientes={clientes}
-        productos={productos} // <-- Pasamos los productos al modal
+        productos={productos}
         clienteSeleccionado={clienteSeleccionado}
         setClienteSeleccionado={setClienteSeleccionado}
         verHistorialCliente={verHistorialCliente}
