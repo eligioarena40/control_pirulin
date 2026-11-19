@@ -7,9 +7,11 @@ import {
   MessageCircle,
   FileText,
   Upload,
-  X
+  X,
+  ScanLine
 } from 'lucide-react';
 import api from '../services/api';
+import { extraerDatosComprobante } from '../utils/ocrComprobante';
 
 const obtenerFechaHoyInput = () => {
   const hoy = new Date();
@@ -34,6 +36,7 @@ export default function Pagos() {
   const [referenciaPago, setReferenciaPago] = useState('');
   const [fechaPago, setFechaPago] = useState(obtenerFechaHoyInput());
   const [archivoComprobante, setArchivoComprobante] = useState(null);
+  const [leyendoCapture, setLeyendoCapture] = useState(false);
   const [cargando, setCargando] = useState(false);
 
   // Datos del pago exitoso para el ticket final
@@ -61,6 +64,40 @@ export default function Pagos() {
     setReferenciaPago('');
     setFechaPago(obtenerFechaHoyInput());
     setArchivoComprobante(null);
+    setLeyendoCapture(false);
+  };
+
+  const manejarCambioComprobante = async (e) => {
+    const archivo = e.target.files?.[0] || null;
+    setArchivoComprobante(archivo);
+
+    if (!archivo) return;
+
+    setLeyendoCapture(true);
+    try {
+      const { ultimos4Ref, fechaISO, montoBs: bsDetectado, montoUsd: usdDetectado } =
+        await extraerDatosComprobante(archivo);
+
+      if (ultimos4Ref) {
+        setReferenciaPago((prev) => (!prev || prev.trim() === '' ? ultimos4Ref : prev));
+      }
+
+      if (fechaISO) {
+        setFechaPago(fechaISO);
+      }
+
+      if (bsDetectado) {
+        setMontoBs((prev) => (!prev || Number(prev) === 0 ? bsDetectado : prev));
+      }
+
+      if (usdDetectado) {
+        setMontoAbonado((prev) => (!prev || Number(prev) === 0 ? usdDetectado : prev));
+      }
+    } catch (error) {
+      console.error('Error al extraer datos del comprobante:', error);
+    } finally {
+      setLeyendoCapture(false);
+    }
   };
 
   const registrarPago = async (e) => {
@@ -219,7 +256,6 @@ export default function Pagos() {
 
     return (
       <div className="p-4 sm:p-6 max-w-md mx-auto pb-32 animate-fadeIn">
-        {/* Botón regresar bien alineado en una sola línea */}
         <button
           type="button"
           onClick={() => setPaso(1)}
@@ -229,7 +265,6 @@ export default function Pagos() {
         </button>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl p-6 sm:p-7 space-y-5">
-          {/* Cabecera del cliente con avatar y tarjeta de deuda */}
           <div className="flex items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800 pb-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-12 h-12 shrink-0 rounded-2xl bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 flex items-center justify-center font-black text-lg">
@@ -248,7 +283,6 @@ export default function Pagos() {
               </div>
             </div>
 
-            {/* Indicador de deuda pendiente */}
             <div className="text-right shrink-0 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/50 px-3 py-2 rounded-2xl">
               <p className="text-[10px] font-extrabold uppercase text-red-500">Deuda</p>
               <p className="text-sm font-black text-red-600 dark:text-red-400">
@@ -258,7 +292,6 @@ export default function Pagos() {
           </div>
 
           <form onSubmit={registrarPago} className="space-y-4">
-            {/* Monto a abonar con botón rápido "Saldar Todo" */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-extrabold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
@@ -291,7 +324,6 @@ export default function Pagos() {
               </div>
             </div>
 
-            {/* Método de pago y Referencia */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
@@ -311,7 +343,7 @@ export default function Pagos() {
 
               <div>
                 <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                  Nro. Referencia
+                  Nro. Referencia (4 ult.)
                 </label>
                 <input
                   type="text"
@@ -323,7 +355,6 @@ export default function Pagos() {
               </div>
             </div>
 
-            {/* Monto en Bolívares y Fecha del Pago */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
@@ -358,10 +389,9 @@ export default function Pagos() {
               </div>
             </div>
 
-            {/* Selector personalizado de Comprobante / Capture */}
             <div>
               <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                Comprobante / Capture <span className="text-gray-400 font-semibold">(Opcional)</span>
+                Comprobante / Capture <span className="text-gray-400 font-semibold">(Auto-lee ref., fecha y monto)</span>
               </label>
 
               {!archivoComprobante ? (
@@ -373,16 +403,20 @@ export default function Pagos() {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => setArchivoComprobante(e.target.files[0] || null)}
+                    onChange={manejarCambioComprobante}
                     className="hidden"
                   />
                 </label>
               ) : (
                 <div className="flex items-center justify-between gap-2 w-full h-14 px-4 bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 rounded-2xl">
                   <div className="flex items-center gap-2.5 truncate">
-                    <FileText className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+                    {leyendoCapture ? (
+                      <ScanLine className="w-4 h-4 text-emerald-600 shrink-0 animate-pulse" />
+                    ) : (
+                      <FileText className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+                    )}
                     <span className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300 truncate">
-                      {archivoComprobante.name}
+                      {leyendoCapture ? 'Leyendo referencia, fecha y monto...' : archivoComprobante.name}
                     </span>
                   </div>
                   <button
@@ -399,10 +433,14 @@ export default function Pagos() {
 
             <button
               type="submit"
-              disabled={cargando}
+              disabled={cargando || leyendoCapture}
               className="w-full btn h-13 bg-emerald-600 hover:bg-emerald-700 text-white border-none rounded-2xl flex items-center justify-center gap-2 font-extrabold text-base shadow-lg shadow-emerald-600/20 mt-2"
             >
-              {cargando ? 'Registrando pago...' : 'Confirmar y Guardar Pago'}
+              {leyendoCapture
+                ? 'Procesando capture...'
+                : cargando
+                  ? 'Registrando pago...'
+                  : 'Confirmar y Guardar Pago'}
             </button>
           </form>
         </div>
