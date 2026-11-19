@@ -1,4 +1,5 @@
 import Producto from '../models/Producto.js';
+import { eliminarImagenCloudinary } from '../utils/cloudinaryHelper.js';
 
 // Obtener todos los productos
 export const obtenerProductos = async (req, res) => {
@@ -22,7 +23,7 @@ export const crearProducto = async (req, res) => {
       nombre,
       precio,
       stock,
-      imagenUrl // <--- Guardamos la URL de Cloudinary aquí
+      imagenUrl
     });
 
     await nuevoProducto.save();
@@ -32,16 +33,24 @@ export const crearProducto = async (req, res) => {
   }
 };
 
-// Actualizar producto
+// Actualizar producto (y borrar imagen anterior en Cloudinary si suben una nueva)
 export const actualizarProducto = async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, precio, stock } = req.body;
 
+    const productoActual = await Producto.findById(id);
+    if (!productoActual) {
+      return res.status(404).json({ mensaje: 'Producto no encontrado' });
+    }
+
     const datosActualizacion = { nombre, precio, stock };
 
-    // Si suben una nueva imagen al editar, la actualizamos
+    // Si suben una nueva imagen al editar, borramos la anterior y guardamos la nueva
     if (req.file) {
+      if (productoActual.imagenUrl) {
+        await eliminarImagenCloudinary(productoActual.imagenUrl);
+      }
       datosActualizacion.imagenUrl = req.file.path;
     }
 
@@ -57,11 +66,20 @@ export const actualizarProducto = async (req, res) => {
   }
 };
 
-// Eliminar producto
+// Eliminar producto y su imagen en Cloudinary
 export const eliminarProducto = async (req, res) => {
   try {
     const { id } = req.params;
-    await Producto.findByIdAndDelete(id);
+    const productoEliminado = await Producto.findByIdAndDelete(id);
+
+    if (!productoEliminado) {
+      return res.status(404).json({ mensaje: 'Producto no encontrado' });
+    }
+
+    if (productoEliminado.imagenUrl) {
+      await eliminarImagenCloudinary(productoEliminado.imagenUrl);
+    }
+
     res.json({ mensaje: 'Producto eliminado correctamente' });
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al eliminar producto', error: error.message });
