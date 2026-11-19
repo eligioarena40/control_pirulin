@@ -11,6 +11,14 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 
+const obtenerFechaHoyInput = () => {
+  const hoy = new Date();
+  const anio = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoy.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}`;
+};
+
 export default function Pagos() {
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -24,6 +32,7 @@ export default function Pagos() {
   const [montoBs, setMontoBs] = useState('');
   const [metodoPago, setMetodoPago] = useState('pago_movil');
   const [referenciaPago, setReferenciaPago] = useState('');
+  const [fechaPago, setFechaPago] = useState(obtenerFechaHoyInput());
   const [archivoComprobante, setArchivoComprobante] = useState(null);
   const [cargando, setCargando] = useState(false);
 
@@ -50,6 +59,7 @@ export default function Pagos() {
     setMontoBs('');
     setMetodoPago('pago_movil');
     setReferenciaPago('');
+    setFechaPago(obtenerFechaHoyInput());
     setArchivoComprobante(null);
   };
 
@@ -62,12 +72,14 @@ export default function Pagos() {
 
     setCargando(true);
     try {
+      const fechaEnviar = fechaPago ? `${fechaPago}T12:00:00` : new Date().toISOString();
       const formData = new FormData();
       formData.append('cliente', clienteSeleccionado._id);
       formData.append('montoAbonado', montoAbonado);
       formData.append('montoBs', montoBs || 0);
       formData.append('metodoPago', metodoPago);
       formData.append('referenciaPago', referenciaPago || 'S/R');
+      formData.append('fechaPago', fechaEnviar);
 
       if (archivoComprobante) {
         formData.append('comprobante', archivoComprobante);
@@ -77,6 +89,8 @@ export default function Pagos() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
+      const fechaGuardada = res.data.fechaPago || fechaEnviar;
+
       setPagoExitoso({
         ...res.data,
         cliente: clienteSeleccionado,
@@ -84,6 +98,7 @@ export default function Pagos() {
         montoBs: Number(montoBs || 0),
         metodo: metodoPago,
         referencia: referenciaPago || 'S/R',
+        fechaPago: fechaGuardada,
         tieneCapture: !!archivoComprobante,
         comprobanteUrl: res.data.comprobanteUrl
       });
@@ -106,6 +121,10 @@ export default function Pagos() {
 
   // --- PASO 3: TICKET DE PAGO EXITOSO ---
   if (paso === 3 && pagoExitoso) {
+    const fechaFormateadaTicket = new Date(
+      pagoExitoso.fechaPago || pagoExitoso.createdAt || Date.now()
+    ).toLocaleDateString();
+
     return (
       <div className="p-4 sm:p-6 max-w-md mx-auto pb-32 animate-fadeIn">
         <button
@@ -121,7 +140,9 @@ export default function Pagos() {
               <CheckCircle2 className="w-7 h-7 stroke-[2.5]" />
             </div>
             <h2 className="text-2xl font-black text-gray-900 dark:text-white">Comprobante de Pago</h2>
-            <p className="text-xs font-medium text-gray-400 mt-1">{new Date().toLocaleString()}</p>
+            <p className="text-xs font-medium text-gray-400 mt-1">
+              Fecha del pago: {fechaFormateadaTicket}
+            </p>
           </div>
 
           <div className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-5 text-left border border-gray-100 dark:border-gray-800 space-y-4">
@@ -141,7 +162,7 @@ export default function Pagos() {
               </div>
             </div>
 
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-3.5 flex justify-between items-center">
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-3.5 grid grid-cols-2 gap-3">
               <div>
                 <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider">Referencia</p>
                 <p className="font-bold text-gray-800 dark:text-gray-200 text-sm">{pagoExitoso.referencia}</p>
@@ -149,6 +170,12 @@ export default function Pagos() {
               <div className="text-right">
                 <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider">Monto Bs</p>
                 <p className="font-bold text-amber-600 text-sm">Bs. {pagoExitoso.montoBs.toFixed(2)}</p>
+              </div>
+              <div className="col-span-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <span className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider">Fecha del Pago</span>
+                <span className="font-extrabold text-gray-800 dark:text-gray-200 text-xs">
+                  {fechaFormateadaTicket}
+                </span>
               </div>
             </div>
 
@@ -173,7 +200,7 @@ export default function Pagos() {
 
           <button
             onClick={() => {
-              const mensaje = `📦 *COMPROBANTE DE PAGO - PIRULÍN*\n👤 Cliente: ${pagoExitoso.cliente.nombre}\n🏢 Dpto: ${pagoExitoso.cliente.departamento || 'General'}\n💳 Método: ${pagoExitoso.metodo.replace('_', ' ').toUpperCase()}\n📌 Referencia: ${pagoExitoso.referencia}\n🇻🇪 Monto Bs: Bs. ${pagoExitoso.montoBs.toFixed(2)}\n💰 Abonado: US$ ${pagoExitoso.monto.toFixed(2)}`;
+              const mensaje = `📦 *COMPROBANTE DE PAGO - PIRULÍN*\n👤 Cliente: ${pagoExitoso.cliente.nombre}\n🏢 Dpto: ${pagoExitoso.cliente.departamento || 'General'}\n📅 Fecha Pago: ${fechaFormateadaTicket}\n💳 Método: ${pagoExitoso.metodo.replace('_', ' ').toUpperCase()}\n📌 Referencia: ${pagoExitoso.referencia}\n🇻🇪 Monto Bs: Bs. ${pagoExitoso.montoBs.toFixed(2)}\n💰 Abonado: US$ ${pagoExitoso.monto.toFixed(2)}`;
               const tlf = pagoExitoso.cliente.telefono ? pagoExitoso.cliente.telefono.replace(/\D/g, '') : '';
               window.open(`https://wa.me/${tlf}?text=${encodeURIComponent(mensaje)}`, '_blank');
             }}
@@ -296,22 +323,37 @@ export default function Pagos() {
               </div>
             </div>
 
-            {/* Monto en Bolívares con prefijo Bs. */}
-            <div>
-              <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                Monto en Bolívares <span className="text-gray-400 font-semibold">(Opcional)</span>
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-amber-600 pointer-events-none">
-                  Bs.
-                </span>
+            {/* Monto en Bolívares y Fecha del Pago */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
+                  Monto Bs <span className="text-gray-400 font-semibold">(Opc.)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-black text-amber-600 pointer-events-none">
+                    Bs.
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={montoBs}
+                    onChange={(e) => setMontoBs(e.target.value)}
+                    className="w-full h-12 pl-10 pr-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-500 focus:bg-white dark:focus:bg-gray-900 focus:outline-none font-bold text-sm text-amber-600 rounded-xl transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
+                  Fecha del Pago
+                </label>
                 <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={montoBs}
-                  onChange={(e) => setMontoBs(e.target.value)}
-                  className="w-full h-12 pl-12 pr-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-500 focus:bg-white dark:focus:bg-gray-900 focus:outline-none font-bold text-base text-amber-600 rounded-xl transition-all"
+                  type="date"
+                  value={fechaPago}
+                  onChange={(e) => setFechaPago(e.target.value)}
+                  className="w-full h-12 px-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-emerald-600 focus:bg-white dark:focus:bg-gray-900 focus:outline-none font-bold text-xs text-gray-900 dark:text-white rounded-xl transition-all"
+                  required
                 />
               </div>
             </div>
