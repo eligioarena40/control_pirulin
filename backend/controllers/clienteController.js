@@ -2,28 +2,24 @@ import Cliente from '../models/Cliente.js';
 import Entrega from '../models/Entrega.js';
 import Pago from '../models/Pago.js';
 import { getIo } from '../socket.js';
+import { eliminarImagenCloudinary } from '../utils/cloudinaryHelper.js';
 
 // Obtener clientes con su deuda real calculada (Entregas - Pagos)
 export const obtenerClientes = async (req, res) => {
   try {
     const clientes = await Cliente.find().sort({ departamento: 1, nombre: 1 }).lean();
-    
-    // Recorremos cada cliente para calcular su deuda real de forma dinámica
+
     const clientesConDeuda = await Promise.all(clientes.map(async (cliente) => {
-      // 1. Buscamos todas las entregas (compras) de este cliente
       const entregasCliente = await Entrega.find({ cliente: cliente._id });
-      
-      // 2. Buscamos todos los pagos (abonos) independientes de este cliente
       const pagosCliente = await Pago.find({ cliente: cliente._id });
 
-      // 3. Aplicamos la lógica de cálculo
       const totalEntregas = entregasCliente.reduce((acc, curr) => acc + (curr.montoTotal || 0), 0);
       const totalPagos = pagosCliente.reduce((acc, curr) => acc + (curr.montoAbonado || 0), 0);
       const deudaReal = Math.max(0, totalEntregas - totalPagos);
 
       return {
         ...cliente,
-        deudaTotal: deudaReal // Enviamos la deuda real calculada al frontend
+        deudaTotal: deudaReal
       };
     }));
 
@@ -37,12 +33,12 @@ export const obtenerClientes = async (req, res) => {
 export const crearCliente = async (req, res) => {
   try {
     const { nombre, departamento, telefono } = req.body;
-    
-    const nuevoCliente = new Cliente({ 
-      nombre, 
-      departamento, 
-      telefono: telefono || '' 
-    }); 
+
+    const nuevoCliente = new Cliente({
+      nombre,
+      departamento,
+      telefono: telefono || ''
+    });
 
     await nuevoCliente.save();
 
@@ -65,10 +61,10 @@ export const actualizarCliente = async (req, res) => {
 
     const clienteActualizado = await Cliente.findByIdAndUpdate(
       id,
-      { 
-        nombre, 
-        departamento, 
-        telefono: telefono || '' 
+      {
+        nombre,
+        departamento,
+        telefono: telefono || ''
       },
       { new: true }
     );
@@ -88,7 +84,7 @@ export const actualizarCliente = async (req, res) => {
   }
 };
 
-// Eliminar un cliente del sistema y limpiar en cascada sus ventas y pagos
+// Eliminar un cliente, limpiar entregas y pagos en cascada, y borrar comprobantes en Cloudinary
 export const eliminarCliente = async (req, res) => {
   try {
     const { id } = req.params;
@@ -98,16 +94,21 @@ export const eliminarCliente = async (req, res) => {
       return res.status(404).json({ mensaje: 'Cliente no encontrado' });
     }
 
-    // 1. Borramos todas las entregas (ventas) asociadas a este cliente
-    await Entrega.deleteMany({ cliente: id });
+    // 1. Buscamos los pagos del cliente para borrar sus comprobantes en Cloudinary
+    const pagosCliente = await Pago.find({ cliente: id }).lean();
+    for (const pago of pagosCliente) {
+      if (pago.comprobanteUrl) {
+        await eliminarImagenCloudinary(pago.comprobanteUrl);
+      }
+    }
 
-    // 2. Borramos todos los pagos asociados a este cliente
+    // 2. Eliminamos entregas y pagos asociados en MongoDB
+    await Entrega.deleteMany({ cliente: id });
     await Pago.deleteMany({ cliente: id });
 
-    // 3. Borramos al cliente de la base de datos
+    // 3. Eliminamos al cliente
     await Cliente.findByIdAndDelete(id);
 
-    // 4. Notificamos en tiempo real
     const io = getIo();
     if (io) {
       io.emit('cliente-actualizado', { accion: 'eliminar', id });

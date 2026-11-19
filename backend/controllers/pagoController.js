@@ -1,5 +1,6 @@
 import Pago from '../models/Pago.js';
 import { getIo } from '../socket.js';
+import { eliminarImagenCloudinary } from '../utils/cloudinaryHelper.js';
 
 // Obtener todos los pagos
 export const obtenerPagos = async (req, res) => {
@@ -16,16 +17,13 @@ export const obtenerPagos = async (req, res) => {
 // Registrar un abono o pago independiente
 export const crearPago = async (req, res) => {
   try {
-    // 📌 Extraemos montoBs de req.body
     const { cliente, montoAbonado, montoBs, metodoPago, referenciaPago } = req.body;
-    
-    // Si se adjuntó archivo mediante multer y Cloudinary
     const comprobanteUrl = req.file ? req.file.path : '';
 
     const nuevoPago = new Pago({
       cliente,
       montoAbonado: Number(montoAbonado),
-      montoBs: Number(montoBs) || 0, // 📌 Guardamos los Bolívares (por defecto 0 si no se envían)
+      montoBs: Number(montoBs) || 0,
       metodoPago: metodoPago || 'pago_movil',
       referenciaPago: referenciaPago || 'S/R',
       comprobanteUrl
@@ -36,9 +34,10 @@ export const crearPago = async (req, res) => {
     const pagoCompleto = await Pago.findById(nuevoPago._id)
       .populate('cliente', 'nombre departamento telefono');
 
-    // Socket.IO para sincronización en tiempo real
     const io = getIo();
-    io.emit('pago-actualizado', { accion: 'crear', pago: pagoCompleto });
+    if (io) {
+      io.emit('pago-actualizado', { accion: 'crear', pago: pagoCompleto });
+    }
 
     res.status(201).json(pagoCompleto);
   } catch (error) {
@@ -67,9 +66,10 @@ export const actualizarPago = async (req, res) => {
       return res.status(404).json({ mensaje: 'Pago no encontrado' });
     }
 
-    // Socket.IO para sincronización en tiempo real
     const io = getIo();
-    io.emit('pago-actualizado', { accion: 'actualizar', pago: pagoActualizado });
+    if (io) {
+      io.emit('pago-actualizado', { accion: 'actualizar', pago: pagoActualizado });
+    }
 
     res.json(pagoActualizado);
   } catch (error) {
@@ -77,14 +77,24 @@ export const actualizarPago = async (req, res) => {
   }
 };
 
-// Eliminar un pago
+// Eliminar un pago y su comprobante en Cloudinary
 export const eliminarPago = async (req, res) => {
   try {
     const { id } = req.params;
-    await Pago.findByIdAndDelete(id);
+    const pagoEliminado = await Pago.findByIdAndDelete(id);
+
+    if (!pagoEliminado) {
+      return res.status(404).json({ mensaje: 'Pago no encontrado' });
+    }
+
+    if (pagoEliminado.comprobanteUrl) {
+      await eliminarImagenCloudinary(pagoEliminado.comprobanteUrl);
+    }
 
     const io = getIo();
-    io.emit('pago-actualizado', { accion: 'eliminar', id });
+    if (io) {
+      io.emit('pago-actualizado', { accion: 'eliminar', id });
+    }
 
     res.json({ mensaje: 'Pago eliminado correctamente' });
   } catch (error) {

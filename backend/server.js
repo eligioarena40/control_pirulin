@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { v2 as cloudinary } from "cloudinary";
 
 // Importar la función para inicializar el socket globalmente
 import { initSocket } from './socket.js';
@@ -15,6 +16,13 @@ import usuarioRoutes from './routes/usuarioRoutes.js';
 import pagoRoutes from './routes/pagoRoutes.js';
 
 dotenv.config();
+
+// Configuración de Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const app = express();
 const httpServer = createServer(app);
