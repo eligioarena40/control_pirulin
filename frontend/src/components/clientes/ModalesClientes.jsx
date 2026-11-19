@@ -401,7 +401,7 @@ export default function ModalesClientes({
                     rel="noopener noreferrer"
                     className="btn btn-md bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 border-2 border-emerald-400 text-emerald-700 dark:text-emerald-300 w-full flex items-center justify-center gap-2 rounded-xl font-extrabold h-12 shadow-2xs"
                   >
-                    <FileText className="w-4 h-4" /> Ver Comprobante en Cloudinary
+                    <FileText className="w-4 h-4" /> Ver Comprobante
                   </a>
                 </div>
               )}
