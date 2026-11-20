@@ -1,6 +1,6 @@
-import { createRequire } from 'module';
 import Cliente from '../models/Cliente.js';
 import Entrega from '../models/Entrega.js';
+import Pago from '../models/Pago.js';
 import { getIo } from '../socket.js';
 import { eliminarImagenCloudinary } from '../utils/cloudinaryHelper.js';
 

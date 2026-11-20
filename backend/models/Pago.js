@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const pagoSchema = new mongoose.Schema(
   {
@@ -55,4 +55,4 @@ const pagoSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model('Pago', pagoSchema);
+export default mongoose.model('Pago', pagoSchema);
