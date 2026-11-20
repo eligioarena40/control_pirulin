@@ -35,18 +35,12 @@ const pagoSchema = new mongoose.Schema(
       trim: true,
       default: 'S/R',
     },
-    bancoOrigen: {
-      type: String,
-      trim: true,
-      default: '',
-    },
     fechaPago: {
       type: Date,
       default: Date.now,
     },
-    notas: {
+    comprobanteUrl: {
       type: String,
-      trim: true,
       default: '',
     },
   },

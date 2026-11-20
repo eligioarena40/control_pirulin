@@ -25,6 +25,14 @@ function formatearFechaPagoLocal(fechaStr) {
   return Number.isNaN(dObj.getTime()) ? String(fechaStr) : dObj.toLocaleDateString('es-VE');
 }
 
+function formatearFechaRegistro(fechaStr) {
+  const fecha = fechaStr ? new Date(fechaStr) : new Date();
+  if (Number.isNaN(fecha.getTime())) {
+    return new Date().toLocaleString('es-VE');
+  }
+  return fecha.toLocaleString('es-VE');
+}
+
 function obtenerFechaHoyLocalISO() {
   const hoy = new Date();
   const y = hoy.getFullYear();
@@ -43,9 +51,11 @@ export default function Pagos() {
   const [tasaCambio, setTasaCambio] = useState('');
   const [metodoPago, setMetodoPago] = useState('pago_movil');
   const [referenciaPago, setReferenciaPago] = useState('');
-  const [bancoOrigen, setBancoOrigen] = useState('');
   const [fechaPago, setFechaPago] = useState(() => obtenerFechaHoyLocalISO());
-  const [notas, setNotas] = useState('');
+
+  // Comprobante adjunto y vista previa
+  const [archivoComprobante, setArchivoComprobante] = useState(null);
+  const [vistaPreviaComprobante, setVistaPreviaComprobante] = useState(null);
 
   // Cuadro de advertencia por exceso de deuda o validación
   const [alertaDeuda, setAlertaDeuda] = useState('');
@@ -65,6 +75,14 @@ export default function Pagos() {
       setToastMensaje(null);
     }, 3500);
   };
+
+  useEffect(() => {
+    return () => {
+      if (vistaPreviaComprobante && vistaPreviaComprobante.startsWith('blob:')) {
+        URL.revokeObjectURL(vistaPreviaComprobante);
+      }
+    };
+  }, [vistaPreviaComprobante]);
 
   const leerCampoDeudaDirecta = (cliente) => {
     if (!cliente) return null;
@@ -207,6 +225,12 @@ export default function Pagos() {
     const archivo = e.target.files?.[0];
     if (!archivo) return;
 
+    setArchivoComprobante(archivo);
+    setVistaPreviaComprobante((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(archivo);
+    });
+
     setProcesandoOcr(true);
     setEstadoOcr('Analizando comprobante bancario...');
 
@@ -245,39 +269,6 @@ export default function Pagos() {
         setReferenciaPago(refLimpia);
       }
 
-      const bancoCandidato =
-        datos?.banco ??
-        datos?.bancoOrigen ??
-        datos?.entidad ??
-        datos?.institucion ??
-        '';
-
-      let bancoLimpio = String(bancoCandidato || '').trim();
-
-      if (!bancoLimpio && textoOcr) {
-        const mapasBancos = [
-          { nombre: 'Mercantil', regex: /(?:0105|mercant[ií]?l?)/i },
-          { nombre: 'BDV', regex: /(?:0102|banco\s*de\s*venezuela|\bbdv\b)/i },
-          { nombre: 'Banesco', regex: /(?:0134|banesco)/i },
-          { nombre: 'Provincial', regex: /(?:0108|provincial)/i },
-          { nombre: 'Bancaribe', regex: /(?:0114|bancaribe)/i },
-          { nombre: 'Exterior', regex: /(?:0115|banco\s*exterior)/i },
-          { nombre: 'BNC', regex: /(?:0191|\bbnc\b|nacional\s*de\s*cr[eé]dito)/i },
-          { nombre: 'Bancamiga', regex: /(?:0172|bancamiga)/i },
-          { nombre: 'Tesoro', regex: /(?:0163|tesoro)/i },
-          { nombre: 'Bicentenario', regex: /(?:0175|bicentenario)/i },
-        ];
-
-        const encontrado = mapasBancos.find((b) => b.regex.test(textoOcr));
-        if (encontrado) {
-          bancoLimpio = encontrado.nombre;
-        }
-      }
-
-      if (bancoLimpio) {
-        setBancoOrigen(bancoLimpio);
-      }
-
       if (datos?.fechaISO) {
         setFechaPago(datos.fechaISO);
       }
@@ -294,7 +285,7 @@ export default function Pagos() {
 
       setEstadoOcr(
         refLimpia
-          ? `Referencia detectada: ${refLimpia}${bancoLimpio ? ` · ${bancoLimpio}` : ''}`
+          ? `Referencia detectada: ${refLimpia}`
           : 'Datos detectados (verifica la referencia).'
       );
     } catch (error) {
@@ -322,7 +313,6 @@ export default function Pagos() {
 
     const deudaActual = obtenerDeudaActual(clienteSeleccionado);
 
-    // Regla estricta: el pago no puede superar la deuda actual ni dejar deuda < 0
     if (montoUsdNum > deudaActual + 0.0001) {
       setAlertaDeuda(
         `El pago de la deuda debe ser el monto total de la deuda o menor a ella (Deuda actual: US$ ${deudaActual.toFixed(
@@ -334,43 +324,71 @@ export default function Pagos() {
 
     setGuardando(true);
     try {
-      const payload = {
-        cliente: clienteSeleccionado._id,
-        montoAbonado: Number(montoUsdNum.toFixed(2)),
-        montoBs: Number(montoBs || 0),
-        tasaCambio: Number(tasaCambio || 0),
-        metodoPago,
-        referenciaPago: referenciaPago.trim() || 'S/R',
-        bancoOrigen: bancoOrigen.trim(),
-        fechaPago,
-        notas: notas.trim(),
-      };
+      const montoAbonadoFormateado = Number(montoUsdNum.toFixed(2));
+      const montoBsFormateado = Number(montoBs || 0);
+      const tasaCambioFormateada = Number(tasaCambio || 0);
+      const referenciaFormateada = referenciaPago.trim() || 'S/R';
 
-      const res = await api.post('/api/pagos', payload);
+      let res;
+      if (archivoComprobante) {
+        const formData = new FormData();
+        formData.append('cliente', clienteSeleccionado._id);
+        formData.append('montoAbonado', String(montoAbonadoFormateado));
+        formData.append('montoBs', String(montoBsFormateado));
+        formData.append('tasaCambio', String(tasaCambioFormateada));
+        formData.append('metodoPago', metodoPago);
+        formData.append('referenciaPago', referenciaFormateada);
+        formData.append('fechaPago', fechaPago);
+        formData.append('comprobante', archivoComprobante);
+
+        res = await api.post('/api/pagos', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } else {
+        res = await api.post('/api/pagos', {
+          cliente: clienteSeleccionado._id,
+          montoAbonado: montoAbonadoFormateado,
+          montoBs: montoBsFormateado,
+          tasaCambio: tasaCambioFormateada,
+          metodoPago,
+          referenciaPago: referenciaFormateada,
+          fechaPago,
+        });
+      }
+
       const pagoRegistrado = res.data?.pago || res.data;
       const nuevaDeuda =
         res.data?.deudaRestante !== undefined
           ? Math.max(0, Number(res.data.deudaRestante))
           : Math.max(0, Number((deudaActual - montoUsdNum).toFixed(2)));
 
+      const urlComprobanteFinal =
+        pagoRegistrado?.comprobanteUrl ||
+        pagoRegistrado?.comprobante ||
+        pagoRegistrado?.urlComprobante ||
+        pagoRegistrado?.imagenComprobante ||
+        vistaPreviaComprobante ||
+        null;
+
       setComprobante({
         id: pagoRegistrado?._id || Date.now(),
         clienteNombre: clienteSeleccionado.nombre,
         departamento: clienteSeleccionado.departamento || 'General',
         metodoPago,
-        referenciaPago: payload.referenciaPago,
-        montoBs: payload.montoBs,
-        montoAbonado: payload.montoAbonado,
-        fechaPago: payload.fechaPago,
+        referenciaPago: referenciaFormateada,
+        montoBs: montoBsFormateado,
+        montoAbonado: montoAbonadoFormateado,
+        fechaPago: pagoRegistrado?.fechaPago || fechaPago,
+        registradoEn: pagoRegistrado?.createdAt || new Date().toISOString(),
+        urlComprobante: urlComprobanteFinal,
         deudaRestante: nuevaDeuda,
       });
 
       setMontoAbonado('');
       setMontoBs('');
       setReferenciaPago('');
-      setBancoOrigen('');
-      setNotas('');
       setEstadoOcr('');
+      setArchivoComprobante(null);
       await cargarClientes();
       mostrarToast('Pago registrado correctamente.');
     } catch (error) {
@@ -413,6 +431,11 @@ export default function Pagos() {
         <button
           type="button"
           onClick={() => {
+            if (vistaPreviaComprobante && vistaPreviaComprobante.startsWith('blob:')) {
+              URL.revokeObjectURL(vistaPreviaComprobante);
+            }
+            setVistaPreviaComprobante(null);
+            setArchivoComprobante(null);
             setComprobante(null);
             setAlertaDeuda('');
           }}
@@ -431,7 +454,7 @@ export default function Pagos() {
               Comprobante de Pago
             </h2>
             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mt-1">
-              Fecha del pago: {formatearFechaPagoLocal(comprobante.fechaPago)}
+              Registrado: {formatearFechaRegistro(comprobante.registradoEn)}
             </p>
           </div>
 
@@ -471,6 +494,13 @@ export default function Pagos() {
               )}
             </div>
 
+            <div className="flex justify-between items-center border-b border-gray-200/70 dark:border-gray-700 pb-3">
+              <span className="text-[11px] font-bold uppercase text-gray-400">Fecha del pago</span>
+              <span className="font-extrabold text-gray-800 dark:text-gray-200 text-sm">
+                {formatearFechaPagoLocal(comprobante.fechaPago)}
+              </span>
+            </div>
+
             <div className="flex justify-between items-center pt-1">
               <span className="text-sm font-extrabold text-gray-700 dark:text-gray-300">
                 Monto Abonado:
@@ -480,6 +510,18 @@ export default function Pagos() {
               </span>
             </div>
           </div>
+
+          {comprobante.urlComprobante && (
+            <a
+              href={comprobante.urlComprobante}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3.5 px-5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 border-2 border-emerald-500 text-emerald-700 dark:text-emerald-300 font-extrabold rounded-2xl flex items-center justify-center gap-2.5 whitespace-nowrap transition"
+            >
+              <FileImage className="w-5 h-5 shrink-0" />
+              <span>Ver Comprobante</span>
+            </a>
+          )}
 
           <button
             type="button"
@@ -627,6 +669,11 @@ export default function Pagos() {
               {procesandoOcr ? 'Leyendo imagen...' : estadoOcr}
             </span>
           </div>
+          {archivoComprobante && (
+            <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+              Comprobante adjunto: {archivoComprobante.name}
+            </p>
+          )}
         </div>
 
         {/* 3. DATOS DEL PAGO */}
@@ -699,7 +746,7 @@ export default function Pagos() {
             />
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <label className="block text-xs font-black uppercase text-gray-600 dark:text-gray-300 mb-1.5">
               Fecha del Pago
             </label>
@@ -708,19 +755,6 @@ export default function Pagos() {
               value={fechaPago}
               onChange={(e) => setFechaPago(e.target.value)}
               className="w-full h-12 px-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:outline-none rounded-2xl text-sm font-bold text-gray-900 dark:text-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-black uppercase text-gray-600 dark:text-gray-300 mb-1.5">
-              Banco / Observación
-            </label>
-            <input
-              type="text"
-              placeholder="Ej. BDV, Banesco, Mercantil..."
-              value={bancoOrigen}
-              onChange={(e) => setBancoOrigen(e.target.value)}
-              className="w-full h-12 px-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:outline-none rounded-2xl text-sm font-semibold text-gray-900 dark:text-white"
             />
           </div>
         </div>

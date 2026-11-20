@@ -30,6 +30,15 @@ export default function ModalesClientes({
   toastMensaje,
   setToastMensaje
 }) {
+  const urlComprobanteModal = reciboPagoModal
+    ? reciboPagoModal.comprobanteUrl ||
+      reciboPagoModal.comprobante ||
+      reciboPagoModal.urlComprobante ||
+      reciboPagoModal.imagenComprobante ||
+      reciboPagoModal.reciboUrl ||
+      ""
+    : "";
+
   return (
     <>
       {/* 📌 MODAL DE CONFIRMACIÓN */}
@@ -406,10 +415,10 @@ export default function ModalesClientes({
                 </div>
               )}
 
-              {editandoPagoId !== reciboPagoModal._id && reciboPagoModal.comprobanteUrl && (
+              {editandoPagoId !== reciboPagoModal._id && urlComprobanteModal && (
                 <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                   <a
-                    href={reciboPagoModal.comprobanteUrl}
+                    href={urlComprobanteModal}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-md bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 border-2 border-emerald-400 text-emerald-700 dark:text-emerald-300 w-full flex items-center justify-center gap-2 rounded-xl font-extrabold h-12 shadow-2xs"

@@ -68,7 +68,6 @@ router.post('/', async (req, res) => {
 
     const deudaActual = obtenerDeudaCliente(cliente);
 
-    // Regla clave: el pago no puede superar la deuda actual ni dejar deuda < 0
     if (montoAbonadoNum > deudaActual + 0.0001) {
       return res.status(400).json({
         message: `El pago de la deuda debe ser el monto total de la deuda o menor a ella (Deuda actual: US$ ${deudaActual.toFixed(
@@ -85,14 +84,11 @@ router.post('/', async (req, res) => {
       tasaCambio: Number(req.body.tasaCambio || 0),
       metodoPago: req.body.metodoPago || 'pago_movil',
       referenciaPago: req.body.referenciaPago ? String(req.body.referenciaPago).trim() : 'S/R',
-      bancoOrigen: req.body.bancoOrigen ? String(req.body.bancoOrigen).trim() : '',
       fechaPago: req.body.fechaPago ? new Date(req.body.fechaPago) : new Date(),
-      notas: req.body.notas ? String(req.body.notas).trim() : '',
     });
 
     await nuevoPago.save();
 
-    // Actualizar deuda del cliente asegurando que nunca sea negativa
     const nuevaDeuda = Math.max(0, Number((deudaActual - montoAbonadoNum).toFixed(2)));
     if ('deuda' in cliente) {
       cliente.deuda = nuevaDeuda;
@@ -102,7 +98,6 @@ router.post('/', async (req, res) => {
     }
     await cliente.save();
 
-    // Si el modelo Entrega maneja saldoPendiente / pagado, distribuir abono en entregas pendientes
     if (Entrega) {
       let restante = montoAbonadoNum;
       const entregasPendientes = await Entrega.find({

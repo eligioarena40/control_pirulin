@@ -27,7 +27,7 @@ export const crearPago = async (req, res) => {
       metodoPago: metodoPago || 'pago_movil',
       referenciaPago: referenciaPago || 'S/R',
       fechaPago: fechaPago ? new Date(fechaPago) : new Date(),
-      comprobanteUrl
+      comprobanteUrl,
     });
 
     await nuevoPago.save();
