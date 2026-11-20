@@ -1,8 +1,11 @@
+import { createRequire } from 'module';
 import Cliente from '../models/Cliente.js';
 import Entrega from '../models/Entrega.js';
-import Pago from '../models/Pago.js';
 import { getIo } from '../socket.js';
 import { eliminarImagenCloudinary } from '../utils/cloudinaryHelper.js';
+
+const require = createRequire(import.meta.url);
+const Pago = require('../models/Pago.js');
 
 // Obtener clientes con su deuda real calculada (Entregas - Pagos)
 export const obtenerClientes = async (req, res) => {
