@@ -54,20 +54,30 @@ export default function Historial() {
         };
       });
 
-      const pagos = resPagos.data.map((p) => ({
-        id: p._id,
-        clienteId: p.cliente?._id || p.cliente,
-        tipo: 'pago',
-        fecha: p.fechaPago || p.createdAt,
-        cliente: p.cliente?.nombre || 'Cliente General',
-        departamento: p.cliente?.departamento || 'General',
-        metodoPago: p.metodoPago || 'pago_movil',
-        referenciaPago: p.referenciaPago || 'S/R',
-        montoBs: Number(p.montoBs || 0),
-        descripcion: `Abono (${(p.metodoPago || 'pago_movil').replace('_', ' ')}) - Ref: ${p.referenciaPago || 'S/R'}`,
-        monto: Number(p.montoAbonado || 0),
-        estado: 'Abono',
-      }));
+      const pagos = resPagos.data.map((p) => {
+        const urlComprobante =
+          p.comprobanteUrl ||
+          p.comprobante ||
+          p.urlComprobante ||
+          p.imagenComprobante ||
+          '';
+
+        return {
+          id: p._id,
+          clienteId: p.cliente?._id || p.cliente,
+          tipo: 'pago',
+          fecha: p.fechaPago || p.createdAt,
+          cliente: p.cliente?.nombre || 'Cliente General',
+          departamento: p.cliente?.departamento || 'General',
+          metodoPago: p.metodoPago || 'pago_movil',
+          referenciaPago: p.referenciaPago || 'S/R',
+          montoBs: Number(p.montoBs || 0),
+          comprobanteUrl: urlComprobante,
+          descripcion: `Abono (${(p.metodoPago || 'pago_movil').replace('_', ' ')}) - Ref: ${p.referenciaPago || 'S/R'}`,
+          monto: Number(p.montoAbonado || 0),
+          estado: 'Abono',
+        };
+      });
 
       const combinado = [...entregas, ...pagos].sort(
         (a, b) => new Date(b.fecha) - new Date(a.fecha)

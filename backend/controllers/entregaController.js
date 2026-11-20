@@ -1,4 +1,5 @@
 import Entrega from '../models/Entrega.js';
+import Pago from '../models/Pago.js';
 import { getIo } from '../socket.js';
 
 // Obtener todas las entregas/deudas
@@ -18,7 +19,7 @@ export const obtenerEntregas = async (req, res) => {
 export const crearEntrega = async (req, res) => {
   try {
     const { cliente, producto, cantidad, montoTotal, estadoPago, metodoPago, referenciaPago } = req.body;
-    
+
     const nuevaEntrega = new Entrega({
       cliente,
       producto,
@@ -26,19 +27,19 @@ export const crearEntrega = async (req, res) => {
       montoTotal,
       estadoPago: estadoPago || 'pendiente',
       metodoPago: metodoPago || 'por_definir',
-      referenciaPago: referenciaPago || ''
+      referenciaPago: referenciaPago || '',
     });
 
     await nuevaEntrega.save();
-    
-    // Traer la entrega con los datos poblados incluyendo el teléfono
+
     const entregaCompleta = await Entrega.findById(nuevaEntrega._id)
       .populate('cliente', 'nombre departamento telefono')
       .populate('producto', 'nombre precio imagenUrl');
 
-    // ⚡ Socket.IO
     const io = getIo();
-    io.emit('entrega-actualizada', { accion: 'crear', entrega: entregaCompleta });
+    if (io) {
+      io.emit('entrega-actualizada', { accion: 'crear', entrega: entregaCompleta });
+    }
 
     res.status(201).json(entregaCompleta);
   } catch (error) {
@@ -52,13 +53,12 @@ export const actualizarEntrega = async (req, res) => {
     const { id } = req.params;
     const { producto, cantidad, total, montoTotal } = req.body;
 
-    // Unificamos el valor total sin importar si el frontend mandó 'total' o 'montoTotal'
     const valorCalculado = total !== undefined ? total : montoTotal;
 
     const datosParaActualizar = {
       ...(producto && { producto }),
       ...(cantidad !== undefined && { cantidad }),
-      ...(valorCalculado !== undefined && { montoTotal: valorCalculado })
+      ...(valorCalculado !== undefined && { montoTotal: valorCalculado }),
     };
 
     const entregaActualizada = await Entrega.findByIdAndUpdate(
@@ -74,7 +74,9 @@ export const actualizarEntrega = async (req, res) => {
     }
 
     const io = getIo();
-    io.emit('entrega-actualizada', { accion: 'actualizar', entrega: entregaActualizada });
+    if (io) {
+      io.emit('entrega-actualizada', { accion: 'actualizar', entrega: entregaActualizada });
+    }
 
     res.json(entregaActualizada);
   } catch (error) {
@@ -94,12 +96,11 @@ export const actualizarPagoEntrega = async (req, res) => {
     }
 
     const comprobanteUrl = req.file ? req.file.path : entregaActual.comprobanteUrl;
-    
+
     const montoNum = Number(montoAbonado) || entregaActual.montoTotal;
     let nuevoMontoTotal = entregaActual.montoTotal;
     let nuevoEstadoPago = 'pagado';
 
-    // Si el abono es menor a la deuda actual, restamos y dejamos la entrega como pendiente con el saldo restante
     if (montoNum < entregaActual.montoTotal) {
       nuevoMontoTotal = Number((entregaActual.montoTotal - montoNum).toFixed(2));
       nuevoEstadoPago = 'pendiente';
@@ -108,12 +109,12 @@ export const actualizarPagoEntrega = async (req, res) => {
       nuevoEstadoPago = 'pagado';
     }
 
-    const datosActualizacion = { 
-      estadoPago: nuevoEstadoPago, 
+    const datosActualizacion = {
+      estadoPago: nuevoEstadoPago,
       montoTotal: nuevoMontoTotal,
-      metodoPago: metodoPago || entregaActual.metodoPago, 
+      metodoPago: metodoPago || entregaActual.metodoPago,
       referenciaPago: referenciaPago || entregaActual.referenciaPago,
-      comprobanteUrl
+      comprobanteUrl,
     };
 
     const entregaActualizada = await Entrega.findByIdAndUpdate(
@@ -125,7 +126,9 @@ export const actualizarPagoEntrega = async (req, res) => {
       .populate('producto', 'nombre precio imagenUrl');
 
     const io = getIo();
-    io.emit('entrega-actualizada', { accion: 'actualizar', entrega: entregaActualizada });
+    if (io) {
+      io.emit('entrega-actualizada', { accion: 'actualizar', entrega: entregaActualizada });
+    }
 
     res.json(entregaActualizada);
   } catch (error) {
@@ -133,15 +136,57 @@ export const actualizarPagoEntrega = async (req, res) => {
   }
 };
 
-// Eliminar registro de entrega
+// Eliminar registro de entrega solo si no tiene pagos vinculados
 export const eliminarEntrega = async (req, res) => {
   try {
     const { id } = req.params;
+
+    const entrega = await Entrega.findById(id);
+    if (!entrega) {
+      return res.status(404).json({ mensaje: 'Entrega no encontrada' });
+    }
+
+    // 1. Verificar pagos vinculados directamente a esta entrega
+    const pagosDirectos = await Pago.countDocuments({ entrega: id });
+
+    // 2. Verificar si el cliente tiene pagos que quedarían por encima del total de ventas sin esta entrega
+    let pagosExcedentes = false;
+    if (entrega.cliente) {
+      const entregasCliente = await Entrega.find({ cliente: entrega.cliente });
+      const totalEntregasActual = entregasCliente.reduce(
+        (acc, e) => acc + Number(e.montoTotal || 0),
+        0
+      );
+      const totalEntregasSinEsta = Math.max(
+        0,
+        Number((totalEntregasActual - Number(entrega.montoTotal || 0)).toFixed(2))
+      );
+
+      const pagosCliente = await Pago.find({ cliente: entrega.cliente });
+      const totalPagosCliente = pagosCliente.reduce(
+        (acc, p) => acc + Number(p.montoAbonado || 0),
+        0
+      );
+
+      if (totalPagosCliente > totalEntregasSinEsta + 0.0001) {
+        pagosExcedentes = true;
+      }
+    }
+
+    if (pagosDirectos > 0 || pagosExcedentes) {
+      return res.status(400).json({
+        mensaje:
+          'No se puede eliminar la venta debido a que tiene un pago vinculado. Elimina primero el pago vinculado.',
+        bloqueadoPorPago: true,
+      });
+    }
+
     await Entrega.findByIdAndDelete(id);
 
-    // ⚡ Socket.IO
     const io = getIo();
-    io.emit('entrega-actualizada', { accion: 'eliminar', id });
+    if (io) {
+      io.emit('entrega-actualizada', { accion: 'eliminar', id });
+    }
 
     res.json({ mensaje: 'Entrega eliminada correctamente' });
   } catch (error) {

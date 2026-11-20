@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ShoppingBag, CreditCard, FileText, MessageCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, CreditCard, FileText, MessageCircle, CheckCircle, AlertTriangle, X } from 'lucide-react';
 
 export default function DetalleCliente({
   clienteSeleccionado,
@@ -18,6 +18,7 @@ export default function DetalleCliente({
   mostrarToast
 }) {
   const [reciboVentaModal, setReciboVentaModal] = useState(null);
+  const [alertaEliminacion, setAlertaEliminacion] = useState('');
 
   const deudaTotalCalculada = historial.reduce((acc, item) => {
     if (item.tipo === "venta")
@@ -27,10 +28,76 @@ export default function DetalleCliente({
     return acc;
   }, 0);
 
+  const verificarPagoVinculadoAVenta = async (ventaItem) => {
+    const ventaId = String(ventaItem?._id || ventaItem?.id || '');
+    const clienteId = String(
+      ventaItem?.cliente?._id || ventaItem?.cliente || clienteSeleccionado?._id || ''
+    );
+    const montoVenta = Number(
+      ventaItem?.montoTotal ?? ventaItem?.total ?? ventaItem?.monto ?? 0
+    );
+
+    let entregasLista = Array.isArray(todasEntregas) ? todasEntregas : [];
+    let pagosLista = Array.isArray(todosPagos) ? todosPagos : [];
+
+    if ((!entregasLista.length || !pagosLista.length) && api) {
+      try {
+        const [resEntregas, resPagos] = await Promise.all([
+          api.get('/api/entregas'),
+          api.get('/api/pagos'),
+        ]);
+        entregasLista = Array.isArray(resEntregas.data) ? resEntregas.data : entregasLista;
+        pagosLista = Array.isArray(resPagos.data) ? resPagos.data : pagosLista;
+      } catch (err) {
+        console.error('Error consultando entregas/pagos para validar eliminación:', err);
+      }
+    }
+
+    // 1. Verificar si hay pagos referenciando directamente esta entrega
+    const pagosDirectos = pagosLista.filter((p) => {
+      const refEntrega = String(p?.entrega?._id || p?.entrega || '');
+      return ventaId && refEntrega === ventaId;
+    });
+
+    if (pagosDirectos.length > 0) {
+      return true;
+    }
+
+    // 2. Verificar si el total de abonos del cliente excedería las ventas restantes (evita deuda negativa o abonos huérfanos)
+    if (clienteId) {
+      const entregasCliente = entregasLista.filter(
+        (e) => String(e?.cliente?._id || e?.cliente || '') === clienteId
+      );
+      const totalEntregasActual = entregasCliente.reduce(
+        (acc, e) => acc + Number(e?.montoTotal ?? e?.total ?? e?.monto ?? 0),
+        0
+      );
+      const totalEntregasSinVenta = Math.max(
+        0,
+        Number((totalEntregasActual - montoVenta).toFixed(2))
+      );
+
+      const pagosCliente = pagosLista.filter(
+        (p) => String(p?.cliente?._id || p?.cliente || '') === clienteId
+      );
+      const totalPagosCliente = pagosCliente.reduce(
+        (acc, p) => acc + Number(p?.montoAbonado ?? p?.monto ?? 0),
+        0
+      );
+
+      if (totalPagosCliente > totalEntregasSinVenta + 0.0001) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-24">
       <button
         onClick={() => {
+          setAlertaEliminacion('');
           setClienteSeleccionado(null);
           setHistorial([]);
         }}
@@ -38,6 +105,31 @@ export default function DetalleCliente({
       >
         <ArrowLeft className="w-4 h-4 stroke-[2.5]" /> Volver a lista de clientes
       </button>
+
+      {alertaEliminacion && (
+        <div
+          role="alert"
+          className="bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-500 text-rose-900 dark:text-rose-100 rounded-2xl p-4 shadow-md flex items-start justify-between gap-3"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="font-black text-xs uppercase tracking-wider text-rose-700 dark:text-rose-300">
+                Advertencia: No se puede eliminar la venta
+              </p>
+              <p className="text-sm font-bold leading-snug">{alertaEliminacion}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAlertaEliminacion('')}
+            className="p-1.5 rounded-xl text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition"
+            aria-label="Cerrar advertencia"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-sm border border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative overflow-hidden">
         <div className="absolute left-0 top-0 bottom-0 w-2 bg-amber-500"></div>
@@ -214,9 +306,23 @@ export default function DetalleCliente({
               </button>
               
               <button
-                onClick={() => {
-                  const entregaId = reciboVentaModal._id;
+                onClick={async () => {
+                  const itemAEliminar = reciboVentaModal;
+                  const entregaId = itemAEliminar._id;
                   const clienteActual = clienteSeleccionado;
+
+                  const tienePagoVinculado = await verificarPagoVinculadoAVenta(itemAEliminar);
+                  if (tienePagoVinculado) {
+                    const msg =
+                      'No se puede eliminar la venta debido a que tiene un pago vinculado. Elimina primero el pago vinculado.';
+                    setReciboVentaModal(null);
+                    setAlertaEliminacion(msg);
+                    if (typeof mostrarToast === 'function') {
+                      mostrarToast(msg);
+                    }
+                    return;
+                  }
+
                   setReciboVentaModal(null);
                   setConfirmarModal({
                     titulo: 'Eliminar Venta / Entrega',
@@ -229,10 +335,15 @@ export default function DetalleCliente({
                           api.get('/api/pagos'),
                         ]);
                         verHistorialCliente(clienteActual, resEntregas.data, resPagos.data);
+                        setAlertaEliminacion('');
                         mostrarToast('Entrega eliminada con éxito');
                       } catch (error) {
                         console.error('Error al eliminar entrega:', error);
-                        alert('No se pudo eliminar la entrega.');
+                        const msgError =
+                          error?.response?.data?.mensaje ||
+                          'No se pudo eliminar la entrega.';
+                        setAlertaEliminacion(msgError);
+                        alert(msgError);
                       }
                     }
                   });

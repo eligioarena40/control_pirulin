@@ -29,15 +29,17 @@ function formatearNumeroSinCerosInnecesarios(num) {
   return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
 
-/**
- * Construye el libro Excel (.xlsx) con:
- * - Sin columna Tipo ni columna Monto_Bs
- * - Columna "Producto en Venta"
- * - Abonos en columnas posteriores al "Estado" (uno por columna hasta cancelar)
- * - Estado "Cancelado" (verde) o "Pendiente (Abono X$ resta Y$)" / "Pendiente" (rojo)
- * - Cálculo correcto de Saldo Pendiente
- * - Nombre con fecha local correcta
- */
+function obtenerUrlComprobantePago(pago) {
+  if (!pago) return '';
+  const url =
+    pago.comprobanteUrl ||
+    pago.comprobante ||
+    pago.urlComprobante ||
+    pago.imagenComprobante ||
+    '';
+  return String(url || '').trim();
+}
+
 export async function crearLibroExcelHistorial(transacciones = []) {
   const ventas = transacciones
     .filter((t) => t.tipo === 'venta')
@@ -55,6 +57,7 @@ export async function crearLibroExcelHistorial(transacciones = []) {
     .map((p) => ({
       ...p,
       montoPago: Number(p.monto ?? p.montoAbonado ?? 0),
+      comprobanteUrl: obtenerUrlComprobantePago(p),
     }))
     .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
@@ -88,6 +91,7 @@ export async function crearLibroExcelHistorial(transacciones = []) {
         montoBs: Number(pago.montoBs || 0),
         fechaTexto: formatearFechaCorta(pago.fecha),
         referencia: pago.referenciaPago || 'S/R',
+        comprobanteUrl: pago.comprobanteUrl || '',
       });
     }
   }
@@ -117,11 +121,19 @@ export async function crearLibroExcelHistorial(transacciones = []) {
     { header: 'Estado', key: 'estado', width: 34 },
   ];
 
-  const columnasAbonos = Array.from({ length: maxAbonosEnFila }, (_, i) => ({
-    header: `Abono ${i + 1}`,
-    key: `abono_${i + 1}`,
-    width: 48,
-  }));
+  const columnasAbonos = [];
+  for (let i = 0; i < maxAbonosEnFila; i++) {
+    columnasAbonos.push({
+      header: `Abono ${i + 1}`,
+      key: `abono_${i + 1}`,
+      width: 48,
+    });
+    columnasAbonos.push({
+      header: `Comprobante ${i + 1}`,
+      key: `comprobante_${i + 1}`,
+      width: 42,
+    });
+  }
 
   sheet.columns = [...columnasBase, ...columnasAbonos];
 
@@ -185,6 +197,9 @@ export async function crearLibroExcelHistorial(transacciones = []) {
       const montoStr = formatearNumeroSinCerosInnecesarios(ab.montoAplicado);
       const bsStr = formatearNumeroSinCerosInnecesarios(ab.montoBs);
       rowData[`abono_${idx + 1}`] = `${montoStr}$, ${ab.metodoTexto}, Bs. ${bsStr}, de fecha ${ab.fechaTexto}, referencia ${ab.referencia}`;
+      rowData[`comprobante_${idx + 1}`] = ab.comprobanteUrl
+        ? ab.comprobanteUrl
+        : 'Sin comprobante';
     });
 
     const row = sheet.addRow(rowData);
@@ -193,6 +208,20 @@ export async function crearLibroExcelHistorial(transacciones = []) {
     const celdaEstado = row.getCell('estado');
     celdaEstado.fill = esCancelado ? fillVerde : fillRojo;
     celdaEstado.font = esCancelado ? fontVerde : fontRojo;
+
+    v.abonosAsignados.forEach((ab, idx) => {
+      const celdaComp = row.getCell(`comprobante_${idx + 1}`);
+      if (ab.comprobanteUrl) {
+        const url = ab.comprobanteUrl;
+        if (/^https?:\/\//i.test(url)) {
+          celdaComp.value = { text: url, hyperlink: url };
+          celdaComp.font = { color: { argb: 'FF2563EB' }, underline: true };
+        }
+      } else {
+        celdaComp.value = 'Sin comprobante';
+        celdaComp.font = { italic: true, color: { argb: 'FF64748B' } };
+      }
+    });
   });
 
   const totalVentas = ventas.reduce((acc, v) => acc + v.montoVenta, 0);
