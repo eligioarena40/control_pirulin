@@ -13,7 +13,9 @@ import productoRoutes from './routes/productoRoutes.js';
 import clienteRoutes from './routes/clienteRoutes.js';
 import entregaRoutes from './routes/entregaRoutes.js';
 import usuarioRoutes from './routes/usuarioRoutes.js';
-import pagoRoutes from './routes/pagoRoutes.js';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pagoRoutes = require('./routes/pagoRoutes.js');
 
 dotenv.config();
 
