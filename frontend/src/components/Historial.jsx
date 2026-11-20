@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { FileText, Download, MessageCircle, Mail, Calendar, Search, X, Send } from 'lucide-react';
+import { Download, MessageCircle, Calendar, Search } from 'lucide-react';
 import { crearLibroExcelHistorial, descargarBlob } from '../utils/exportarHistorialExcel';
 
 export default function Historial() {
@@ -9,12 +9,6 @@ export default function Historial() {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [toastMensaje, setToastMensaje] = useState(null);
-
-  // Estado para envío de correo con Excel adjunto
-  const [modalCorreoAbierto, setModalCorreoAbierto] = useState(false);
-  const [correoDestino, setCorreoDestino] = useState('');
-  const [notaCorreo, setNotaCorreo] = useState('');
-  const [enviandoCorreo, setEnviandoCorreo] = useState(false);
 
   const mostrarToast = (mensaje) => {
     setToastMensaje(mensaje);
@@ -109,10 +103,6 @@ export default function Historial() {
     mostrarToast(`Excel descargado: ${nombreArchivo}`);
   };
 
-  const exportarPDF = () => {
-    mostrarToast('Generando reporte PDF profesional...');
-  };
-
   const enviarWhatsApp = async () => {
     if (transaccionesFiltradas.length === 0) {
       mostrarToast('No hay registros para enviar.');
@@ -155,49 +145,6 @@ export default function Historial() {
     window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, '_blank');
   };
 
-  const confirmarEnvioCorreo = async (e) => {
-    e.preventDefault();
-    if (!correoDestino.trim()) {
-      mostrarToast('Ingresa un correo electrónico válido.');
-      return;
-    }
-
-    const { blob, file, nombreArchivo, totalVentas, totalPagos, totalPendiente } =
-      await crearLibroExcelHistorial(transaccionesFiltradas);
-
-    setEnviandoCorreo(true);
-    try {
-      const formData = new FormData();
-      formData.append('correoDestino', correoDestino.trim());
-      formData.append('asunto', `Reporte de Historial - Control Pirulín (${nombreArchivo})`);
-      formData.append(
-        'mensaje',
-        `${notaCorreo ? `${notaCorreo}\n\n` : ''}Resumen:\n- Total Ventas: US$ ${totalVentas.toFixed(2)}\n- Total Abonos: US$ ${totalPagos.toFixed(2)}\n- Saldo Pendiente: US$ ${totalPendiente.toFixed(2)}`
-      );
-      formData.append('archivoExcel', file);
-
-      await api.post('/api/reportes/enviar-excel', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      mostrarToast(`Excel enviado por correo a ${correoDestino.trim()}`);
-      setModalCorreoAbierto(false);
-      setCorreoDestino('');
-      setNotaCorreo('');
-    } catch (error) {
-      descargarBlob(blob, nombreArchivo);
-      const asunto = encodeURIComponent(`Reporte de Historial - Control Pirulín`);
-      const cuerpo = encodeURIComponent(
-        `${notaCorreo ? `${notaCorreo}\n\n` : ''}Adjunto el archivo ${nombreArchivo} con el historial.\nTotal Ventas: US$ ${totalVentas.toFixed(2)} | Abonos: US$ ${totalPagos.toFixed(2)} | Pendiente: US$ ${totalPendiente.toFixed(2)}`
-      );
-      window.open(`mailto:${encodeURIComponent(correoDestino.trim())}?subject=${asunto}&body=${cuerpo}`);
-      mostrarToast('Excel descargado. Se abrió tu correo para enviarlo.');
-      setModalCorreoAbierto(false);
-    } finally {
-      setEnviandoCorreo(false);
-    }
-  };
-
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 pb-24">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -208,31 +155,24 @@ export default function Historial() {
           </p>
         </div>
 
-        {/* Botones de Exportación y Compartir Estilizados */}
-        <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+        {/* Botones de Exportación y Compartir */}
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           <button
+            type="button"
             onClick={exportarExcel}
-            className="btn btn-sm sm:btn-md bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold gap-2 rounded-2xl border-none shadow-sm whitespace-nowrap shrink-0"
+            className="h-11 px-5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-sm font-extrabold rounded-2xl shadow-sm inline-flex items-center justify-center gap-2.5 whitespace-nowrap shrink-0 transition cursor-pointer"
           >
-            <Download className="w-4 h-4 stroke-[2.5] shrink-0" /> Excel
+            <Download className="w-4 h-4 stroke-[2.5] shrink-0" />
+            <span>Excel</span>
           </button>
+
           <button
-            onClick={exportarPDF}
-            className="btn btn-sm sm:btn-md bg-rose-600 hover:bg-rose-700 text-white font-extrabold gap-2 rounded-2xl border-none shadow-sm whitespace-nowrap shrink-0"
-          >
-            <FileText className="w-4 h-4 stroke-[2.5] shrink-0" /> PDF
-          </button>
-          <button
+            type="button"
             onClick={enviarWhatsApp}
-            className="btn btn-sm sm:btn-md bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold gap-2 rounded-2xl border-none shadow-sm whitespace-nowrap shrink-0"
+            className="h-11 px-5 bg-[#25D366] hover:bg-[#1ebe5d] active:scale-[0.98] text-white text-sm font-extrabold rounded-2xl shadow-sm inline-flex items-center justify-center gap-2.5 whitespace-nowrap shrink-0 transition cursor-pointer"
           >
-            <MessageCircle className="w-4 h-4 stroke-[2.5] shrink-0" /> WhatsApp
-          </button>
-          <button
-            onClick={() => setModalCorreoAbierto(true)}
-            className="btn btn-sm sm:btn-md bg-blue-600 hover:bg-blue-700 text-white font-extrabold gap-2 rounded-2xl border-none shadow-sm whitespace-nowrap shrink-0"
-          >
-            <Mail className="w-4 h-4 stroke-[2.5] shrink-0" /> Correo
+            <MessageCircle className="w-4 h-4 stroke-[2.5] shrink-0" />
+            <span>WhatsApp</span>
           </button>
         </div>
       </div>
@@ -339,71 +279,6 @@ export default function Historial() {
         </div>
       </div>
 
-      {/* 📌 MODAL PARA ENVIAR EXCEL POR CORREO */}
-      {modalCorreoAbierto && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-200 dark:border-gray-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
-              <h3 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
-                <Mail className="w-5 h-5 text-blue-600" /> Enviar Historial en Excel
-              </h3>
-              <button
-                onClick={() => setModalCorreoAbierto(false)}
-                className="p-1.5 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={confirmarEnvioCorreo} className="space-y-4">
-              <div>
-                <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase">
-                  Correo Destino
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="ejemplo@correo.com"
-                  value={correoDestino}
-                  onChange={(e) => setCorreoDestino(e.target.value)}
-                  className="w-full h-12 px-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-600 focus:outline-none rounded-xl text-sm font-semibold text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase">
-                  Nota adicional (opcional)
-                </label>
-                <textarea
-                  rows="3"
-                  placeholder="Ej. Reporte de deudas y abonos de la semana..."
-                  value={notaCorreo}
-                  onChange={(e) => setNotaCorreo(e.target.value)}
-                  className="w-full p-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-600 focus:outline-none rounded-xl text-sm font-medium text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setModalCorreoAbierto(false)}
-                  className="btn h-11 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold text-xs rounded-xl border-none"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={enviandoCorreo}
-                  className="btn h-11 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl border-none gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" /> {enviandoCorreo ? 'Enviando...' : 'Enviar Excel'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* 📌 NOTIFICACIÓN FLOTANTE (TOAST) */}
       {toastMensaje && (
         <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn">
@@ -416,6 +291,7 @@ export default function Historial() {
                 <span className="text-sm font-medium tracking-wide">{toastMensaje}</span>
               </div>
               <button
+                type="button"
                 onClick={() => setToastMensaje(null)}
                 className="text-gray-400 hover:text-white text-xs font-bold px-1"
               >
