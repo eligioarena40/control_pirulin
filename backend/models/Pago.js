@@ -1,37 +1,58 @@
-import mongoose from "mongoose";
+const mongoose = require('mongoose');
 
 const pagoSchema = new mongoose.Schema(
   {
     cliente: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Cliente",
-      required: true,
+      ref: 'Cliente',
+      required: [true, 'El cliente es obligatorio'],
+    },
+    entrega: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Entrega',
+      default: null,
     },
     montoAbonado: {
       type: Number,
-      required: true,
+      required: [true, 'El monto del abono es obligatorio'],
+      min: [0.01, 'El monto del abono debe ser mayor a 0'],
     },
     montoBs: {
       type: Number,
       default: 0,
-    }, // 📌 Variable para llevar el control en Bolívares
+    },
+    tasaCambio: {
+      type: Number,
+      default: 0,
+    },
     metodoPago: {
       type: String,
-      required: true,
+      enum: ['pago_movil', 'transferencia', 'efectivo_usd', 'efectivo_bs', 'zelle', 'otro'],
+      default: 'pago_movil',
     },
     referenciaPago: {
       type: String,
-      default: "S/R",
+      trim: true,
+      default: 'S/R',
     },
-    comprobanteUrl: {
+    bancoOrigen: {
       type: String,
+      trim: true,
+      default: '',
     },
     fechaPago: {
       type: Date,
       default: Date.now,
     },
+    notas: {
+      type: String,
+      trim: true,
+      default: '',
+    },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  }
 );
 
-export default mongoose.model("Pago", pagoSchema);
+module.exports = mongoose.model('Pago', pagoSchema);

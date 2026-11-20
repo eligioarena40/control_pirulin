@@ -1,507 +1,744 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Search,
-  DollarSign,
-  CheckCircle2,
-  ArrowLeft,
-  MessageCircle,
-  FileText,
-  Upload,
-  X,
-  ScanLine
-} from 'lucide-react';
 import api from '../services/api';
 import { extraerDatosComprobante } from '../utils/ocrComprobante';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CreditCard,
+  DollarSign,
+  FileImage,
+  MessageCircle,
+  Search,
+  UserCheck,
+  X,
+} from 'lucide-react';
 
-const obtenerFechaHoyInput = () => {
+function formatearFechaPagoLocal(fechaStr) {
+  if (!fechaStr) return new Date().toLocaleDateString('es-VE');
+  const limpio = String(fechaStr).split('T')[0];
+  const partes = limpio.split('-');
+  if (partes.length === 3) {
+    const [y, m, d] = partes;
+    return `${d}/${m}/${y}`;
+  }
+  const dObj = new Date(fechaStr);
+  return Number.isNaN(dObj.getTime()) ? String(fechaStr) : dObj.toLocaleDateString('es-VE');
+}
+
+function obtenerFechaHoyLocalISO() {
   const hoy = new Date();
-  const anio = hoy.getFullYear();
-  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-  const dia = String(hoy.getDate()).padStart(2, '0');
-  return `${anio}-${mes}-${dia}`;
-};
+  const y = hoy.getFullYear();
+  const m = String(hoy.getMonth() + 1).padStart(2, '0');
+  const d = String(hoy.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 export default function Pagos() {
   const [clientes, setClientes] = useState([]);
-  const [busqueda, setBusqueda] = useState('');
-
-  // Pasos del flujo de pago
-  const [paso, setPaso] = useState(1); // 1: Seleccionar cliente, 2: Formulario de pago, 3: Éxito / Comprobante
+  const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
 
-  // Campos del formulario de pago
   const [montoAbonado, setMontoAbonado] = useState('');
   const [montoBs, setMontoBs] = useState('');
+  const [tasaCambio, setTasaCambio] = useState('');
   const [metodoPago, setMetodoPago] = useState('pago_movil');
   const [referenciaPago, setReferenciaPago] = useState('');
-  const [fechaPago, setFechaPago] = useState(obtenerFechaHoyInput());
-  const [archivoComprobante, setArchivoComprobante] = useState(null);
-  const [leyendoCapture, setLeyendoCapture] = useState(false);
-  const [cargando, setCargando] = useState(false);
+  const [bancoOrigen, setBancoOrigen] = useState('');
+  const [fechaPago, setFechaPago] = useState(() => obtenerFechaHoyLocalISO());
+  const [notas, setNotas] = useState('');
 
-  // Datos del pago exitoso para el ticket final
-  const [pagoExitoso, setPagoExitoso] = useState(null);
+  // Cuadro de advertencia por exceso de deuda o validación
+  const [alertaDeuda, setAlertaDeuda] = useState('');
 
-  useEffect(() => {
-    fetchClientes();
-  }, []);
+  // Estado OCR
+  const [procesandoOcr, setProcesandoOcr] = useState(false);
+  const [estadoOcr, setEstadoOcr] = useState('');
 
-  const fetchClientes = async () => {
+  // Estado de envío y comprobante
+  const [guardando, setGuardando] = useState(false);
+  const [comprobante, setComprobante] = useState(null);
+  const [toastMensaje, setToastMensaje] = useState(null);
+
+  const mostrarToast = (mensaje) => {
+    setToastMensaje(mensaje);
+    setTimeout(() => {
+      setToastMensaje(null);
+    }, 3500);
+  };
+
+  const leerCampoDeudaDirecta = (cliente) => {
+    if (!cliente) return null;
+    const candidatos = [
+      cliente.deuda,
+      cliente.saldoPendiente,
+      cliente.deudaAcumulada,
+      cliente.deudaTotal,
+      cliente.totalDeuda,
+      cliente.saldo,
+    ];
+
+    for (const val of candidatos) {
+      if (val !== undefined && val !== null && val !== '') {
+        const num = Number(val);
+        if (!Number.isNaN(num)) {
+          return Math.max(0, num);
+        }
+      }
+    }
+    return null;
+  };
+
+  const calcularDeudaDesdeMovimientos = (clienteId, entregas = [], pagos = []) => {
+    const idStr = String(clienteId || '');
+    const totalEntregas = entregas
+      .filter((e) => String(e.cliente?._id || e.cliente) === idStr)
+      .reduce((acc, e) => {
+        if (e.saldoPendiente !== undefined && e.saldoPendiente !== null) {
+          return acc + Math.max(0, Number(e.saldoPendiente));
+        }
+        if (e.pagado) return acc;
+        return acc + Math.max(0, Number(e.total ?? e.montoTotal ?? 0));
+      }, 0);
+
+    const totalPagos = pagos
+      .filter((p) => String(p.cliente?._id || p.cliente) === idStr)
+      .reduce((acc, p) => acc + Math.max(0, Number(p.montoAbonado ?? p.monto ?? 0)), 0);
+
+    return Math.max(0, Number((totalEntregas - totalPagos).toFixed(2)));
+  };
+
+  const obtenerDeudaActual = (cliente) => {
+    if (!cliente) return 0;
+    if (cliente.deudaCalculada !== undefined && cliente.deudaCalculada !== null) {
+      return Math.max(0, Number(cliente.deudaCalculada) || 0);
+    }
+    const directa = leerCampoDeudaDirecta(cliente);
+    return directa !== null ? directa : 0;
+  };
+
+  const cargarClientes = async () => {
     try {
-      const res = await api.get('/api/clientes');
-      setClientes(res.data);
+      const resClientes = await api.get('/api/clientes');
+      const listaBase = Array.isArray(resClientes.data)
+        ? resClientes.data
+        : resClientes.data?.clientes || [];
+
+      let entregasLista = [];
+      let pagosLista = [];
+
+      const tieneDeudaNoCero = listaBase.some((c) => (leerCampoDeudaDirecta(c) ?? 0) > 0);
+      if (!tieneDeudaNoCero && listaBase.length > 0) {
+        try {
+          const [resEntregas, resPagos] = await Promise.all([
+            api.get('/api/entregas'),
+            api.get('/api/pagos'),
+          ]);
+          entregasLista = Array.isArray(resEntregas.data) ? resEntregas.data : [];
+          pagosLista = Array.isArray(resPagos.data) ? resPagos.data : [];
+        } catch (errMov) {
+          console.error('Error al consultar entregas/pagos para calcular deuda:', errMov);
+        }
+      }
+
+      const listaEnriquecida = listaBase.map((c) => {
+        const directa = leerCampoDeudaDirecta(c);
+        const calculadaMov =
+          entregasLista.length > 0 || pagosLista.length > 0
+            ? calcularDeudaDesdeMovimientos(c._id, entregasLista, pagosLista)
+            : 0;
+
+        const deudaFinal =
+          directa !== null && directa > 0
+            ? directa
+            : calculadaMov > 0
+            ? calculadaMov
+            : directa ?? 0;
+
+        return {
+          ...c,
+          deudaCalculada: Math.max(0, Number(deudaFinal.toFixed(2))),
+        };
+      });
+
+      setClientes(listaEnriquecida);
+
+      if (clienteSeleccionado?._id) {
+        const actualizado = listaEnriquecida.find((c) => c._id === clienteSeleccionado._id);
+        if (actualizado) {
+          setClienteSeleccionado(actualizado);
+        }
+      }
     } catch (error) {
       console.error('Error al cargar clientes:', error);
     }
   };
 
+  useEffect(() => {
+    cargarClientes();
+  }, []);
+
+  const clientesFiltrados = clientes.filter((c) => {
+    const texto = busquedaCliente.toLowerCase().trim();
+    if (!texto) return true;
+    return (
+      String(c.nombre || '').toLowerCase().includes(texto) ||
+      String(c.departamento || '').toLowerCase().includes(texto) ||
+      String(c.telefono || '').toLowerCase().includes(texto)
+    );
+  });
+
   const seleccionarCliente = (cliente) => {
     setClienteSeleccionado(cliente);
-    setPaso(2);
-    setMontoAbonado('');
-    setMontoBs('');
-    setMetodoPago('pago_movil');
-    setReferenciaPago('');
-    setFechaPago(obtenerFechaHoyInput());
-    setArchivoComprobante(null);
-    setLeyendoCapture(false);
+    setAlertaDeuda('');
   };
 
-  const manejarCambioComprobante = async (e) => {
-    const archivo = e.target.files?.[0] || null;
-    setArchivoComprobante(archivo);
+  const manejarCambioMontoUsd = (valor) => {
+    setMontoAbonado(valor);
+    setAlertaDeuda('');
 
-    if (!archivo) return;
-
-    setLeyendoCapture(true);
-    try {
-      const { ultimos4Ref, fechaISO, montoBs: bsDetectado, montoUsd: usdDetectado } =
-        await extraerDatosComprobante(archivo);
-
-      if (ultimos4Ref) {
-        setReferenciaPago((prev) => (!prev || prev.trim() === '' ? ultimos4Ref : prev));
-      }
-
-      if (fechaISO) {
-        setFechaPago(fechaISO);
-      }
-
-      if (bsDetectado) {
-        setMontoBs((prev) => (!prev || Number(prev) === 0 ? bsDetectado : prev));
-      }
-
-      if (usdDetectado) {
-        setMontoAbonado((prev) => (!prev || Number(prev) === 0 ? usdDetectado : prev));
-      }
-    } catch (error) {
-      console.error('Error al extraer datos del comprobante:', error);
-    } finally {
-      setLeyendoCapture(false);
+    const numUsd = Number(valor);
+    const numTasa = Number(tasaCambio);
+    if (!Number.isNaN(numUsd) && numUsd > 0 && !Number.isNaN(numTasa) && numTasa > 0 && !montoBs) {
+      setMontoBs((numUsd * numTasa).toFixed(2));
     }
   };
 
-  const registrarPago = async (e) => {
+  const manejarImagenComprobante = async (e) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+
+    setProcesandoOcr(true);
+    setEstadoOcr('Analizando comprobante bancario...');
+
+    try {
+      const datos = await extraerDatosComprobante(archivo);
+
+      const refCandidata =
+        datos?.ultimos4Ref ??
+        datos?.referencia ??
+        datos?.referenciaPago ??
+        datos?.ultimos4 ??
+        datos?.numeroReferencia ??
+        datos?.nroReferencia ??
+        datos?.ref ??
+        datos?.comprobante ??
+        '';
+
+      let refLimpia = String(refCandidata || '').replace(/\D/g, '');
+      if (refLimpia.length > 4) {
+        refLimpia = refLimpia.slice(-4);
+      }
+
+      const textoOcr = String(datos?.texto || datos?.rawText || datos?.text || '');
+
+      if (!refLimpia && textoOcr) {
+        const matchRef =
+          textoOcr.match(
+            /(?:ref(?:erencia)?|operaci[oó]n|comprobante|nro\.?|n[°º])\s*[:#-]?\s*(\d{4,12})/i
+          ) || textoOcr.match(/\b(\d{4})\b(?!\s*(?:bs|usd|\$|\/|-))/i);
+        if (matchRef?.[1]) {
+          refLimpia = String(matchRef[1]).replace(/\D/g, '').slice(-4);
+        }
+      }
+
+      if (refLimpia) {
+        setReferenciaPago(refLimpia);
+      }
+
+      const bancoCandidato =
+        datos?.banco ??
+        datos?.bancoOrigen ??
+        datos?.entidad ??
+        datos?.institucion ??
+        '';
+
+      let bancoLimpio = String(bancoCandidato || '').trim();
+
+      if (!bancoLimpio && textoOcr) {
+        const mapasBancos = [
+          { nombre: 'Mercantil', regex: /(?:0105|mercant[ií]?l?)/i },
+          { nombre: 'BDV', regex: /(?:0102|banco\s*de\s*venezuela|\bbdv\b)/i },
+          { nombre: 'Banesco', regex: /(?:0134|banesco)/i },
+          { nombre: 'Provincial', regex: /(?:0108|provincial)/i },
+          { nombre: 'Bancaribe', regex: /(?:0114|bancaribe)/i },
+          { nombre: 'Exterior', regex: /(?:0115|banco\s*exterior)/i },
+          { nombre: 'BNC', regex: /(?:0191|\bbnc\b|nacional\s*de\s*cr[eé]dito)/i },
+          { nombre: 'Bancamiga', regex: /(?:0172|bancamiga)/i },
+          { nombre: 'Tesoro', regex: /(?:0163|tesoro)/i },
+          { nombre: 'Bicentenario', regex: /(?:0175|bicentenario)/i },
+        ];
+
+        const encontrado = mapasBancos.find((b) => b.regex.test(textoOcr));
+        if (encontrado) {
+          bancoLimpio = encontrado.nombre;
+        }
+      }
+
+      if (bancoLimpio) {
+        setBancoOrigen(bancoLimpio);
+      }
+
+      if (datos?.fechaISO) {
+        setFechaPago(datos.fechaISO);
+      }
+      if (datos?.montoBs && Number(datos.montoBs) > 0 && (!montoBs || Number(montoBs) === 0)) {
+        setMontoBs(String(datos.montoBs));
+      }
+      if (
+        datos?.montoUsd &&
+        Number(datos.montoUsd) > 0 &&
+        (!montoAbonado || Number(montoAbonado) === 0)
+      ) {
+        setMontoAbonado(String(datos.montoUsd));
+      }
+
+      setEstadoOcr(
+        refLimpia
+          ? `Referencia detectada: ${refLimpia}${bancoLimpio ? ` · ${bancoLimpio}` : ''}`
+          : 'Datos detectados (verifica la referencia).'
+      );
+    } catch (error) {
+      console.error('Error en OCR:', error);
+      setEstadoOcr('No se pudieron leer todos los campos automáticamente.');
+    } finally {
+      setProcesandoOcr(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!montoAbonado || isNaN(montoAbonado) || Number(montoAbonado) <= 0) {
-      alert('Por favor ingresa un monto válido.');
+    setAlertaDeuda('');
+
+    if (!clienteSeleccionado?._id) {
+      setAlertaDeuda('Selecciona primero un cliente o personal para registrar el pago.');
       return;
     }
 
-    setCargando(true);
+    const montoUsdNum = Number(montoAbonado);
+    if (Number.isNaN(montoUsdNum) || montoUsdNum <= 0) {
+      setAlertaDeuda('Ingresa un monto abonado en US$ mayor a 0.00.');
+      return;
+    }
+
+    const deudaActual = obtenerDeudaActual(clienteSeleccionado);
+
+    // Regla estricta: el pago no puede superar la deuda actual ni dejar deuda < 0
+    if (montoUsdNum > deudaActual + 0.0001) {
+      setAlertaDeuda(
+        `El pago de la deuda debe ser el monto total de la deuda o menor a ella (Deuda actual: US$ ${deudaActual.toFixed(
+          2
+        )}).`
+      );
+      return;
+    }
+
+    setGuardando(true);
     try {
-      const fechaEnviar = fechaPago ? `${fechaPago}T12:00:00` : new Date().toISOString();
-      const formData = new FormData();
-      formData.append('cliente', clienteSeleccionado._id);
-      formData.append('montoAbonado', montoAbonado);
-      formData.append('montoBs', montoBs || 0);
-      formData.append('metodoPago', metodoPago);
-      formData.append('referenciaPago', referenciaPago || 'S/R');
-      formData.append('fechaPago', fechaEnviar);
-
-      if (archivoComprobante) {
-        formData.append('comprobante', archivoComprobante);
-      }
-
-      const res = await api.post('/api/pagos', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      const fechaGuardada = res.data.fechaPago || fechaEnviar;
-
-      setPagoExitoso({
-        ...res.data,
-        cliente: clienteSeleccionado,
-        monto: Number(montoAbonado),
+      const payload = {
+        cliente: clienteSeleccionado._id,
+        montoAbonado: Number(montoUsdNum.toFixed(2)),
         montoBs: Number(montoBs || 0),
-        metodo: metodoPago,
-        referencia: referenciaPago || 'S/R',
-        fechaPago: fechaGuardada,
-        tieneCapture: !!archivoComprobante,
-        comprobanteUrl: res.data.comprobanteUrl
+        tasaCambio: Number(tasaCambio || 0),
+        metodoPago,
+        referenciaPago: referenciaPago.trim() || 'S/R',
+        bancoOrigen: bancoOrigen.trim(),
+        fechaPago,
+        notas: notas.trim(),
+      };
+
+      const res = await api.post('/api/pagos', payload);
+      const pagoRegistrado = res.data?.pago || res.data;
+      const nuevaDeuda =
+        res.data?.deudaRestante !== undefined
+          ? Math.max(0, Number(res.data.deudaRestante))
+          : Math.max(0, Number((deudaActual - montoUsdNum).toFixed(2)));
+
+      setComprobante({
+        id: pagoRegistrado?._id || Date.now(),
+        clienteNombre: clienteSeleccionado.nombre,
+        departamento: clienteSeleccionado.departamento || 'General',
+        metodoPago,
+        referenciaPago: payload.referenciaPago,
+        montoBs: payload.montoBs,
+        montoAbonado: payload.montoAbonado,
+        fechaPago: payload.fechaPago,
+        deudaRestante: nuevaDeuda,
       });
 
-      // Refrescamos deudas de clientes en segundo plano
-      fetchClientes();
-      setPaso(3);
+      setMontoAbonado('');
+      setMontoBs('');
+      setReferenciaPago('');
+      setBancoOrigen('');
+      setNotas('');
+      setEstadoOcr('');
+      await cargarClientes();
+      mostrarToast('Pago registrado correctamente.');
     } catch (error) {
-      console.error('Error al registrar pago:', error);
-      alert('Hubo un error al registrar el pago.');
+      const mensajeServidor =
+        error?.response?.data?.message ||
+        'No se pudo registrar el pago. Verifica el monto e inténtalo de nuevo.';
+      setAlertaDeuda(mensajeServidor);
     } finally {
-      setCargando(false);
+      setGuardando(false);
     }
   };
 
-  const volverAlInicio = () => {
-    setPagoExitoso(null);
-    setPaso(1);
+  const compartirComprobanteWhatsApp = () => {
+    if (!comprobante) return;
+    const metodoEtiqueta = String(comprobante.metodoPago || 'pago_movil')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (l) => l.toUpperCase());
+
+    const texto = [
+      '✅ *COMPROBANTE DE PAGO - CONTROL PIRULÍN*',
+      `👤 Cliente: *${comprobante.clienteNombre}* (Dpto: ${comprobante.departamento})`,
+      `💳 Método: ${metodoEtiqueta}`,
+      `🔢 Referencia: ${comprobante.referenciaPago}`,
+      comprobante.montoBs > 0 ? `🇻🇪 Monto Bs.: Bs. ${Number(comprobante.montoBs).toFixed(2)}` : null,
+      `💵 Monto Abonado: *US$ ${Number(comprobante.montoAbonado).toFixed(2)}*`,
+      `📅 Fecha: ${formatearFechaPagoLocal(comprobante.fechaPago)}`,
+      `💰 Deuda restante: US$ ${Number(comprobante.deudaRestante).toFixed(2)}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
-  // --- PASO 3: TICKET DE PAGO EXITOSO ---
-  if (paso === 3 && pagoExitoso) {
-    const fechaFormateadaTicket = new Date(
-      pagoExitoso.fechaPago || pagoExitoso.createdAt || Date.now()
-    ).toLocaleDateString();
+  const deudaActualSeleccionado = obtenerDeudaActual(clienteSeleccionado);
 
+  if (comprobante) {
     return (
-      <div className="p-4 sm:p-6 max-w-md mx-auto pb-32 animate-fadeIn">
+      <div className="p-4 sm:p-6 max-w-xl mx-auto pb-24 space-y-5">
         <button
-          onClick={volverAlInicio}
-          className="inline-flex items-center gap-2 mb-4 font-bold text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl px-3 py-2 transition-colors"
+          type="button"
+          onClick={() => {
+            setComprobante(null);
+            setAlertaDeuda('');
+          }}
+          className="text-sm font-extrabold text-gray-600 dark:text-gray-300 hover:text-amber-600 inline-flex items-center gap-1.5"
         >
-          <ArrowLeft className="w-4 h-4 stroke-[2.5]" /> Registrar otro pago
+          ← Registrar otro pago
         </button>
 
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 text-center">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 sm:p-8 shadow-xl border border-gray-200 dark:border-gray-800 text-center space-y-6">
+          <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <CheckCircle2 className="w-8 h-8" />
+          </div>
+
           <div>
-            <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
-              <CheckCircle2 className="w-7 h-7 stroke-[2.5]" />
-            </div>
-            <h2 className="text-2xl font-black text-gray-900 dark:text-white">Comprobante de Pago</h2>
-            <p className="text-xs font-medium text-gray-400 mt-1">
-              Fecha del pago: {fechaFormateadaTicket}
+            <h2 className="text-2xl font-black text-gray-900 dark:text-white">
+              Comprobante de Pago
+            </h2>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mt-1">
+              Fecha del pago: {formatearFechaPagoLocal(comprobante.fechaPago)}
             </p>
           </div>
 
-          <div className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-5 text-left border border-gray-100 dark:border-gray-800 space-y-4">
-            <div className="flex justify-between items-start gap-2">
+          <div className="bg-gray-50 dark:bg-gray-800/70 rounded-2xl p-5 text-left space-y-4 border border-gray-100 dark:border-gray-700">
+            <div className="flex justify-between items-start gap-4 border-b border-gray-200/70 dark:border-gray-700 pb-3">
               <div>
-                <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider">Personal / Cliente</p>
-                <p className="font-bold text-gray-900 dark:text-white text-base capitalize">{pagoExitoso.cliente.nombre}</p>
-                <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold">
-                  Dpto: {pagoExitoso.cliente.departamento || 'General'}
+                <p className="text-[11px] font-bold uppercase text-gray-400">Personal / Cliente</p>
+                <p className="font-black text-gray-900 dark:text-white text-base">
+                  {comprobante.clienteNombre}
+                </p>
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                  Dpto: {comprobante.departamento}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider">Método</p>
-                <p className="font-bold text-gray-800 dark:text-gray-200 capitalize text-sm">
-                  {pagoExitoso.metodo.replace('_', ' ')}
+                <p className="text-[11px] font-bold uppercase text-gray-400">Método</p>
+                <p className="font-extrabold text-gray-800 dark:text-gray-200 text-sm capitalize">
+                  {String(comprobante.metodoPago || 'pago_movil').replace(/_/g, ' ')}
                 </p>
               </div>
             </div>
 
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-3.5 grid grid-cols-2 gap-3">
+            <div className="flex justify-between items-center border-b border-gray-200/70 dark:border-gray-700 pb-3">
               <div>
-                <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider">Referencia</p>
-                <p className="font-bold text-gray-800 dark:text-gray-200 text-sm">{pagoExitoso.referencia}</p>
+                <p className="text-[11px] font-bold uppercase text-gray-400">Referencia</p>
+                <p className="font-extrabold text-gray-900 dark:text-white text-sm">
+                  {comprobante.referenciaPago}
+                </p>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider">Monto Bs</p>
-                <p className="font-bold text-amber-600 text-sm">Bs. {pagoExitoso.montoBs.toFixed(2)}</p>
-              </div>
-              <div className="col-span-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <span className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider">Fecha del Pago</span>
-                <span className="font-extrabold text-gray-800 dark:text-gray-200 text-xs">
-                  {fechaFormateadaTicket}
-                </span>
-              </div>
+              {comprobante.montoBs > 0 && (
+                <div className="text-right">
+                  <p className="text-[11px] font-bold uppercase text-gray-400">Monto Bs</p>
+                  <p className="font-extrabold text-amber-600 text-sm">
+                    Bs. {Number(comprobante.montoBs).toFixed(2)}
+                  </p>
+                </div>
+              )}
             </div>
 
-            {pagoExitoso.comprobanteUrl && (
-              <div className="pt-1">
-                <a
-                  href={pagoExitoso.comprobanteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-3.5 px-4 bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 border-2 border-emerald-500 text-emerald-700 dark:text-emerald-400 flex items-center justify-center gap-2 rounded-xl font-extrabold text-sm transition-all shadow-2xs"
-                >
-                  <FileText className="w-4 h-4 stroke-[2.5]" /> Ver Comprobante
-                </a>
-              </div>
-            )}
-
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-3.5 flex justify-between items-center">
-              <span className="font-bold text-gray-700 dark:text-gray-300 text-base">Monto Abonado:</span>
-              <span className="font-black text-emerald-600 text-xl">US$ {pagoExitoso.monto.toFixed(2)}</span>
+            <div className="flex justify-between items-center pt-1">
+              <span className="text-sm font-extrabold text-gray-700 dark:text-gray-300">
+                Monto Abonado:
+              </span>
+              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                US$ {Number(comprobante.montoAbonado).toFixed(2)}
+              </span>
             </div>
           </div>
 
           <button
-            onClick={() => {
-              const mensaje = `📦 *COMPROBANTE DE PAGO - PIRULÍN*\n👤 Cliente: ${pagoExitoso.cliente.nombre}\n🏢 Dpto: ${pagoExitoso.cliente.departamento || 'General'}\n📅 Fecha Pago: ${fechaFormateadaTicket}\n💳 Método: ${pagoExitoso.metodo.replace('_', ' ').toUpperCase()}\n📌 Referencia: ${pagoExitoso.referencia}\n🇻🇪 Monto Bs: Bs. ${pagoExitoso.montoBs.toFixed(2)}\n💰 Abonado: US$ ${pagoExitoso.monto.toFixed(2)}`;
-              const tlf = pagoExitoso.cliente.telefono ? pagoExitoso.cliente.telefono.replace(/\D/g, '') : '';
-              window.open(`https://wa.me/${tlf}?text=${encodeURIComponent(mensaje)}`, '_blank');
-            }}
-            className="w-full btn h-12 bg-emerald-600 hover:bg-emerald-700 text-white border-none rounded-2xl flex items-center justify-center gap-2 font-extrabold text-sm shadow-md"
+            type="button"
+            onClick={compartirComprobanteWhatsApp}
+            className="w-full py-3.5 px-5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold rounded-2xl shadow-md flex items-center justify-center gap-2.5 whitespace-nowrap transition cursor-pointer"
           >
-            <MessageCircle className="w-5 h-5" /> Compartir por WhatsApp
+            <MessageCircle className="w-5 h-5 shrink-0" />
+            <span>Compartir por WhatsApp</span>
           </button>
         </div>
       </div>
     );
   }
 
-  // --- PASO 2: FORMULARIO DE REGISTRO DE PAGO (MEJORADO) ---
-  if (paso === 2 && clienteSeleccionado) {
-    const deudaActual = Number(clienteSeleccionado.deudaTotal || 0);
+  return (
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 pb-24">
+      <div>
+        <h1 className="text-3xl font-black text-gray-900 dark:text-white">Registrar Pago / Abono</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Selecciona el cliente, carga un comprobante si deseas autocompletar y registra su abono
+        </p>
+      </div>
 
-    return (
-      <div className="p-4 sm:p-6 max-w-md mx-auto pb-32 animate-fadeIn">
-        <button
-          type="button"
-          onClick={() => setPaso(1)}
-          className="inline-flex items-center gap-2 mb-4 font-bold text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl px-3 py-2 transition-colors"
+      {/* CUADRO DE ADVERTENCIA PRINCIPAL */}
+      {alertaDeuda && (
+        <div
+          role="alert"
+          className="bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-500 text-rose-900 dark:text-rose-100 rounded-2xl p-4 shadow-lg flex items-start justify-between gap-3"
         >
-          <ArrowLeft className="w-4 h-4 stroke-[2.5]" /> Cambiar cliente
-        </button>
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-black text-sm uppercase tracking-wide text-rose-700 dark:text-rose-300">
+                Advertencia: Pago no permitido
+              </p>
+              <p className="text-sm font-bold leading-snug">{alertaDeuda}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAlertaDeuda('')}
+            className="p-1.5 rounded-xl text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition"
+            aria-label="Cerrar advertencia"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl p-6 sm:p-7 space-y-5">
-          <div className="flex items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800 pb-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 shrink-0 rounded-2xl bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 flex items-center justify-center font-black text-lg">
-                {clienteSeleccionado.nombre.charAt(0).toUpperCase()}
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white dark:bg-gray-900 rounded-3xl p-5 sm:p-7 shadow-sm border border-gray-200 dark:border-gray-800 space-y-6"
+      >
+        {/* 1. SELECCIÓN DE CLIENTE */}
+        <div className="space-y-3">
+          <label className="block text-xs font-black uppercase tracking-wider text-gray-600 dark:text-gray-300">
+            1. Seleccionar Cliente / Personal
+          </label>
+
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="search"
+              placeholder="Buscar cliente por nombre o departamento..."
+              value={busquedaCliente}
+              onChange={(e) => setBusquedaCliente(e.target.value)}
+              className="w-full h-11 pl-11 pr-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:outline-none rounded-2xl text-sm font-semibold text-gray-900 dark:text-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
+            {clientesFiltrados.map((c) => {
+              const deudaC = obtenerDeudaActual(c);
+              const activo = clienteSeleccionado?._id === c._id;
+              return (
+                <button
+                  key={c._id}
+                  type="button"
+                  onClick={() => seleccionarCliente(c)}
+                  className={`p-3.5 rounded-2xl border-2 text-left transition flex items-center justify-between gap-3 ${
+                    activo
+                      ? 'border-amber-600 bg-amber-50/70 dark:bg-amber-950/30'
+                      : 'border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/40 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="font-extrabold text-sm text-gray-900 dark:text-white truncate flex items-center gap-1.5">
+                      {activo && <UserCheck className="w-4 h-4 text-amber-600 shrink-0" />}
+                      {c.nombre}
+                    </p>
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 truncate">
+                      Dpto: {c.departamento || 'General'}
+                    </p>
+                  </div>
+                  <span
+                    className={`text-xs font-black px-2.5 py-1 rounded-xl shrink-0 ${
+                      deudaC > 0
+                        ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
+                        : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                    }`}
+                  >
+                    US$ {deudaC.toFixed(2)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {clienteSeleccionado && (
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold uppercase text-amber-800 dark:text-amber-300">
+                  Cliente seleccionado
+                </p>
+                <p className="font-black text-gray-900 dark:text-white">
+                  {clienteSeleccionado.nombre} ({clienteSeleccionado.departamento || 'General'})
+                </p>
               </div>
-              <div className="truncate">
-                <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider bg-amber-100/80 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded-md mb-0.5">
-                  Registrar Abono
-                </span>
-                <h2 className="text-xl font-black text-gray-900 dark:text-white capitalize truncate">
-                  {clienteSeleccionado.nombre}
-                </h2>
-                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                  Dpto: {clienteSeleccionado.departamento || 'General'}
+              <div className="text-right">
+                <p className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
+                  Deuda actual
+                </p>
+                <p className="text-xl font-black text-rose-600 dark:text-rose-400">
+                  US$ {deudaActualSeleccionado.toFixed(2)}
                 </p>
               </div>
             </div>
-
-            <div className="text-right shrink-0 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/50 px-3 py-2 rounded-2xl">
-              <p className="text-[10px] font-extrabold uppercase text-red-500">Deuda</p>
-              <p className="text-sm font-black text-red-600 dark:text-red-400">
-                US$ {deudaActual.toFixed(2)}
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={registrarPago} className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-extrabold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Monto a Abonar (US$)
-                </label>
-                {deudaActual > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setMontoAbonado(deudaActual.toFixed(2))}
-                    className="text-xs font-extrabold text-emerald-600 hover:text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg transition-colors"
-                  >
-                    Saldar todo (${deudaActual.toFixed(2)})
-                  </button>
-                )}
-              </div>
-
-              <div className="relative">
-                <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-600 pointer-events-none stroke-[2.5]" />
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="0.00"
-                  value={montoAbonado}
-                  onChange={(e) => setMontoAbonado(e.target.value)}
-                  className="w-full h-14 pl-11 pr-4 bg-emerald-50/30 dark:bg-gray-800 border-2 border-emerald-500/70 focus:border-emerald-600 focus:bg-white dark:focus:bg-gray-900 focus:outline-none font-black text-2xl text-emerald-600 rounded-2xl transition-all"
-                  required
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                  Método de Pago
-                </label>
-                <select
-                  value={metodoPago}
-                  onChange={(e) => setMetodoPago(e.target.value)}
-                  className="w-full h-12 px-3.5 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-emerald-600 focus:bg-white dark:focus:bg-gray-900 focus:outline-none text-sm font-bold text-gray-900 dark:text-white rounded-xl transition-all"
-                >
-                  <option value="pago_movil">Pago Móvil</option>
-                  <option value="efectivo">Efectivo USD</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="zelle">Zelle</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                  Nro. Referencia (4 ult.)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. 1425"
-                  value={referenciaPago}
-                  onChange={(e) => setReferenciaPago(e.target.value)}
-                  className="w-full h-12 px-3.5 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-emerald-600 focus:bg-white dark:focus:bg-gray-900 focus:outline-none text-sm font-bold text-gray-900 dark:text-white rounded-xl transition-all"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                  Monto Bs <span className="text-gray-400 font-semibold">(Opc.)</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-black text-amber-600 pointer-events-none">
-                    Bs.
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={montoBs}
-                    onChange={(e) => setMontoBs(e.target.value)}
-                    className="w-full h-12 pl-10 pr-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-500 focus:bg-white dark:focus:bg-gray-900 focus:outline-none font-bold text-sm text-amber-600 rounded-xl transition-all"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                  Fecha del Pago
-                </label>
-                <input
-                  type="date"
-                  value={fechaPago}
-                  onChange={(e) => setFechaPago(e.target.value)}
-                  className="w-full h-12 px-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-emerald-600 focus:bg-white dark:focus:bg-gray-900 focus:outline-none font-bold text-xs text-gray-900 dark:text-white rounded-xl transition-all"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-extrabold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                Comprobante / Capture <span className="text-gray-400 font-semibold">(Auto-lee ref., fecha y monto)</span>
-              </label>
-
-              {!archivoComprobante ? (
-                <label className="flex items-center justify-center gap-2.5 w-full h-14 px-4 bg-gray-50 dark:bg-gray-800/80 hover:bg-emerald-50/50 dark:hover:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-emerald-500 rounded-2xl cursor-pointer transition-all">
-                  <Upload className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
-                  <span className="text-sm font-bold text-gray-600 dark:text-gray-300">
-                    Subir capture o comprobante
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={manejarCambioComprobante}
-                    className="hidden"
-                  />
-                </label>
-              ) : (
-                <div className="flex items-center justify-between gap-2 w-full h-14 px-4 bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 rounded-2xl">
-                  <div className="flex items-center gap-2.5 truncate">
-                    {leyendoCapture ? (
-                      <ScanLine className="w-4 h-4 text-emerald-600 shrink-0 animate-pulse" />
-                    ) : (
-                      <FileText className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                    )}
-                    <span className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300 truncate">
-                      {leyendoCapture ? 'Leyendo referencia, fecha y monto...' : archivoComprobante.name}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setArchivoComprobante(null)}
-                    className="p-1.5 rounded-lg text-emerald-700 hover:bg-emerald-200/60 dark:text-emerald-300 transition-colors"
-                    title="Quitar imagen"
-                  >
-                    <X className="w-4 h-4 stroke-[2.5]" />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={cargando || leyendoCapture}
-              className="w-full btn h-13 bg-emerald-600 hover:bg-emerald-700 text-white border-none rounded-2xl flex items-center justify-center gap-2 font-extrabold text-base shadow-lg shadow-emerald-600/20 mt-2"
-            >
-              {leyendoCapture
-                ? 'Procesando capture...'
-                : cargando
-                  ? 'Registrando pago...'
-                  : 'Confirmar y Guardar Pago'}
-            </button>
-          </form>
+          )}
         </div>
-      </div>
-    );
-  }
 
-  // --- PASO 1: SELECCIONAR CLIENTE ---
-  const clientesFiltrados = clientes.filter(c =>
-    c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    (c.departamento && c.departamento.toLowerCase().includes(busqueda.toLowerCase()))
-  );
-
-  return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto pb-32 space-y-6">
-      <div>
-        <h1 className="text-3xl font-black text-gray-900 dark:text-white">Módulo de Pagos y Abonos</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Selecciona un cliente para registrarle un pago independiente</p>
-      </div>
-
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-        <input
-          type="search"
-          autoComplete="off"
-          placeholder="Buscar cliente por nombre o departamento..."
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          className="w-full h-14 pl-12 pr-4 bg-white dark:bg-gray-900 shadow-sm rounded-2xl border-2 border-gray-200 dark:border-gray-800 focus:border-emerald-600 focus:outline-none text-base font-semibold text-gray-800 dark:text-white transition-all"
-        />
-      </div>
-
-      <div className="space-y-3.5">
-        {clientesFiltrados.length === 0 ? (
-          <div className="text-center py-16 bg-white dark:bg-gray-900 rounded-3xl border border-dashed border-gray-300 dark:border-gray-800 p-6">
-            <p className="text-gray-500 text-sm font-medium">No se encontraron clientes.</p>
+        {/* 2. LECTURA OCR OPCIONAL DE COMPROBANTE */}
+        <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-700 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-black uppercase text-gray-700 dark:text-gray-300 flex items-center gap-2 cursor-pointer">
+              <FileImage className="w-4 h-4 text-amber-600" />
+              Escanear comprobante bancario (OCR opcional)
+              <input
+                type="file"
+                accept="image/*"
+                onChange={manejarImagenComprobante}
+                className="hidden"
+              />
+            </label>
+            <span className="text-xs font-semibold text-gray-500">
+              {procesandoOcr ? 'Leyendo imagen...' : estadoOcr}
+            </span>
           </div>
-        ) : (
-          clientesFiltrados.map((cliente) => (
-            <div
-              key={cliente._id}
-              onClick={() => seleccionarCliente(cliente)}
-              className="bg-white dark:bg-gray-900 p-5 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md hover:border-emerald-500 cursor-pointer flex justify-between items-center transition-all"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-black text-lg shadow-inner">
-                  {cliente.nombre.charAt(0)}
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 dark:text-white text-lg capitalize">{cliente.nombre}</h4>
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">Dpto: {cliente.departamento || 'General'}</p>
-                  <p className="text-xs text-gray-400">{cliente.telefono || 'Sin teléfono'}</p>
-                </div>
-              </div>
-              <button className="btn btn-sm bg-emerald-600 hover:bg-emerald-700 text-white border-none font-bold rounded-xl px-4 py-2.5 shadow-xs">
-                Abonar Pago
-              </button>
+        </div>
+
+        {/* 3. DATOS DEL PAGO */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-black uppercase text-gray-600 dark:text-gray-300 mb-1.5">
+              Monto Abonado (US$) *
+            </label>
+            <div className="relative">
+              <DollarSign className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                placeholder="0.00"
+                value={montoAbonado}
+                onChange={(e) => manejarCambioMontoUsd(e.target.value)}
+                className="w-full h-12 pl-10 pr-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:outline-none rounded-2xl text-sm font-black text-gray-900 dark:text-white"
+              />
             </div>
-          ))
-        )}
-      </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase text-gray-600 dark:text-gray-300 mb-1.5">
+              Método de Pago
+            </label>
+            <div className="relative">
+              <CreditCard className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <select
+                value={metodoPago}
+                onChange={(e) => setMetodoPago(e.target.value)}
+                className="w-full h-12 pl-10 pr-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:outline-none rounded-2xl text-sm font-bold text-gray-900 dark:text-white"
+              >
+                <option value="pago_movil">Pago Móvil</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="efectivo_usd">Efectivo USD</option>
+                <option value="efectivo_bs">Efectivo Bs.</option>
+                <option value="zelle">Zelle</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase text-gray-600 dark:text-gray-300 mb-1.5">
+              Referencia Bancaria
+            </label>
+            <input
+              type="text"
+              placeholder="Ej. 3435"
+              value={referenciaPago}
+              onChange={(e) => setReferenciaPago(e.target.value)}
+              className="w-full h-12 px-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:outline-none rounded-2xl text-sm font-bold text-gray-900 dark:text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase text-gray-600 dark:text-gray-300 mb-1.5">
+              Monto en Bs. (opcional)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              value={montoBs}
+              onChange={(e) => setMontoBs(e.target.value)}
+              className="w-full h-12 px-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:outline-none rounded-2xl text-sm font-bold text-gray-900 dark:text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase text-gray-600 dark:text-gray-300 mb-1.5">
+              Fecha del Pago
+            </label>
+            <input
+              type="date"
+              value={fechaPago}
+              onChange={(e) => setFechaPago(e.target.value)}
+              className="w-full h-12 px-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:outline-none rounded-2xl text-sm font-bold text-gray-900 dark:text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase text-gray-600 dark:text-gray-300 mb-1.5">
+              Banco / Observación
+            </label>
+            <input
+              type="text"
+              placeholder="Ej. BDV, Banesco, Mercantil..."
+              value={bancoOrigen}
+              onChange={(e) => setBancoOrigen(e.target.value)}
+              className="w-full h-12 px-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-amber-600 focus:outline-none rounded-2xl text-sm font-semibold text-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={guardando}
+          className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white font-black rounded-2xl shadow-md text-sm flex items-center justify-center transition cursor-pointer disabled:opacity-60"
+        >
+          {guardando ? 'Registrando pago...' : 'Registrar Pago'}
+        </button>
+      </form>
+
+      {toastMensaje && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-2xl text-sm font-semibold">
+          ✓ {toastMensaje}
+        </div>
+      )}
     </div>
   );
 }
