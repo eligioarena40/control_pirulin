@@ -13,6 +13,32 @@ export const api = axios.create({
   },
 });
 
+// Adjuntar automáticamente el JWT en cada petición si existe
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Manejar sesión expirada o no autorizada (401)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuario');
+      window.dispatchEvent(new Event('pirulin:sesion-expirada'));
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Instancia de Socket.io para tiempo real
 export const socket = io(SOCKET_URL);
 

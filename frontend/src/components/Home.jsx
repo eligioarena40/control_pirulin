@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShoppingCart, Users, DollarSign, Package, Clock, ArrowUpRight } from 'lucide-react';
 
-export default function Home({ setActiveTab }) {
+export default function Home({ setActiveTab, usuario }) {
   const menuCards = [
     {
       id: 'entregas',
@@ -62,6 +62,11 @@ export default function Home({ setActiveTab }) {
 
         {/* Textos del Banner */}
         <div className="relative z-20 text-center space-y-2 max-w-xl mx-auto px-4">
+          {usuario?.nombre && (
+            <span className="inline-block text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-amber-500/25 border border-amber-300/40 text-amber-100 backdrop-blur-sm">
+              Hola, {usuario.nombre}
+            </span>
+          )}
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight drop-shadow-md">
             Pirulín TITO
           </h2>
@@ -92,7 +97,7 @@ export default function Home({ setActiveTab }) {
                   <ArrowUpRight className="w-5 h-5 text-gray-500" />
                 </div>
 
-                {/* TÍTULOS CON TAMAÑO AUMENTADO (text-lg en móvil y text-xl/2xl en tablets/pc) */}
+                {/* TÍTULOS CON TAMAÑO AUMENTADO */}
                 <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-gray-900 mb-1.5 leading-snug">
                   {card.title}
                 </h3>

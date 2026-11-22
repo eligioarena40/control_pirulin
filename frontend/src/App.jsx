@@ -1,13 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, Home as HomeIcon } from 'lucide-react';
+import { Sun, Moon, Home as HomeIcon, LogOut } from 'lucide-react';
 import Home from './components/Home';
 import Productos from './components/Productos';
 import Entregas from './components/Entregas';
 import Clientes from './components/clientes/Clientes';
 import Pagos from './components/Pagos';
 import Historial from './components/Historial';
+import Login from './components/Login';
+import pirulinFondo from './assets/pirulin-fondo.jpg';
 
 export default function App() {
+  const [token, setToken] = useState(() => localStorage.getItem('token') || '');
+  const [usuario, setUsuario] = useState(() => {
+    try {
+      const guardado = localStorage.getItem('usuario');
+      return guardado ? JSON.parse(guardado) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [activeTab, setActiveTab] = useState('home');
 
   const [theme, setTheme] = useState(() => {
@@ -28,9 +40,45 @@ export default function App() {
     }
   }, [theme, isDarkTheme]);
 
+  useEffect(() => {
+    const onSesionExpirada = () => {
+      setToken('');
+      setUsuario(null);
+      setActiveTab('home');
+    };
+
+    window.addEventListener('pirulin:sesion-expirada', onSesionExpirada);
+    return () => window.removeEventListener('pirulin:sesion-expirada', onSesionExpirada);
+  }, []);
+
   const toggleLightDark = () => {
     setTheme(isDarkTheme ? 'caramellatte' : 'coffee');
   };
+
+  const handleLoginSuccess = (data) => {
+    const nuevoToken = data?.token || localStorage.getItem('token') || '';
+    const nuevoUsuario = data?.usuario || null;
+    setToken(nuevoToken);
+    setUsuario(nuevoUsuario);
+    setActiveTab('home');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+    setToken('');
+    setUsuario(null);
+    setActiveTab('home');
+  };
+
+  if (!token) {
+    return (
+      <Login
+        fondoPirulinUrl={pirulinFondo}
+        onLoginSuccess={handleLoginSuccess}
+      />
+    );
+  }
 
   const isHome = activeTab === 'home';
 
@@ -44,7 +92,19 @@ export default function App() {
             : 'bg-base-100 dark:bg-gray-900 shadow-sm border-b border-base-300 dark:border-gray-800 py-4 px-3 sm:px-6'
         } flex justify-between items-center transition-colors duration-200`}
       >
-        <div></div>
+        <div className="flex items-center gap-2">
+          {usuario?.nombre && (
+            <span
+              className={`hidden sm:inline-block text-xs font-bold px-3 py-1.5 rounded-full ${
+                isHome
+                  ? 'bg-black/40 text-white backdrop-blur-md border border-white/20'
+                  : 'bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300'
+              }`}
+            >
+              {usuario.nombre}
+            </span>
+          )}
+        </div>
 
         <div className="flex items-center gap-2 sm:gap-3.5">
           {/* SELECTOR DE TEMAS AMPLIADO */}
@@ -90,11 +150,25 @@ export default function App() {
             <HomeIcon size={19} />
             <span>Inicio</span>
           </button>
+
+          {/* BOTÓN CERRAR SESIÓN */}
+          <button
+            onClick={handleLogout}
+            className={`btn btn-md btn-circle ${
+              isHome
+                ? 'bg-black/40 hover:bg-black/60 text-white border border-white/30 backdrop-blur-md'
+                : 'btn-ghost text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+            }`}
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+          >
+            <LogOut size={19} />
+          </button>
         </div>
       </nav>
 
       <main className="flex-1 w-full">
-        {activeTab === 'home' && <Home setActiveTab={setActiveTab} />}
+        {activeTab === 'home' && <Home setActiveTab={setActiveTab} usuario={usuario} />}
         {activeTab === 'entregas' && <Entregas />}
         {activeTab === 'clientes' && <Clientes />}
         {activeTab === 'pagos' && <Pagos />}
