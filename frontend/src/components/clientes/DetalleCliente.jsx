@@ -18,7 +18,9 @@ export default function DetalleCliente({
   mostrarToast
 }) {
   const [reciboVentaModal, setReciboVentaModal] = useState(null);
-  const [alertaEliminacion, setAlertaEliminacion] = useState('');
+  const [alertaVenta, setAlertaVenta] = useState(null); // { titulo: string, mensaje: string }
+
+  const limpiarAlerta = () => setAlertaVenta(null);
 
   const deudaTotalCalculada = historial.reduce((acc, item) => {
     if (item.tipo === "venta")
@@ -49,7 +51,7 @@ export default function DetalleCliente({
         entregasLista = Array.isArray(resEntregas.data) ? resEntregas.data : entregasLista;
         pagosLista = Array.isArray(resPagos.data) ? resPagos.data : pagosLista;
       } catch (err) {
-        console.error('Error consultando entregas/pagos para validar eliminación:', err);
+        console.error('Error consultando entregas/pagos para validar venta:', err);
       }
     }
 
@@ -93,11 +95,29 @@ export default function DetalleCliente({
     return false;
   };
 
+  const mostrarBloqueoVenta = (accion, mensajePersonalizado = null) => {
+    const esEditar = accion === 'editar';
+    const titulo = esEditar
+      ? 'Advertencia: No se puede editar la venta'
+      : 'Advertencia: No se puede eliminar la venta';
+    const mensaje =
+      mensajePersonalizado ||
+      (esEditar
+        ? 'No se puede editar la venta debido a que tiene un pago vinculado. Elimina primero el pago vinculado.'
+        : 'No se puede eliminar la venta debido a que tiene un pago vinculado. Elimina primero el pago vinculado.');
+
+    setReciboVentaModal(null);
+    setAlertaVenta({ titulo, mensaje });
+    if (typeof mostrarToast === 'function') {
+      mostrarToast(mensaje);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-24">
       <button
         onClick={() => {
-          setAlertaEliminacion('');
+          limpiarAlerta();
           setClienteSeleccionado(null);
           setHistorial([]);
         }}
@@ -106,7 +126,7 @@ export default function DetalleCliente({
         <ArrowLeft className="w-4 h-4 stroke-[2.5]" /> Volver a lista de clientes
       </button>
 
-      {alertaEliminacion && (
+      {alertaVenta && (
         <div
           role="alert"
           className="bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-500 text-rose-900 dark:text-rose-100 rounded-2xl p-4 shadow-md flex items-start justify-between gap-3"
@@ -115,14 +135,14 @@ export default function DetalleCliente({
             <AlertTriangle className="w-6 h-6 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
               <p className="font-black text-xs uppercase tracking-wider text-rose-700 dark:text-rose-300">
-                Advertencia: No se puede eliminar la venta
+                {alertaVenta.titulo}
               </p>
-              <p className="text-sm font-bold leading-snug">{alertaEliminacion}</p>
+              <p className="text-sm font-bold leading-snug">{alertaVenta.mensaje}</p>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => setAlertaEliminacion('')}
+            onClick={limpiarAlerta}
             className="p-1.5 rounded-xl text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition"
             aria-label="Cerrar advertencia"
           >
@@ -289,8 +309,14 @@ export default function DetalleCliente({
 
             <div className="grid grid-cols-3 gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">
               <button
-                onClick={() => {
+                onClick={async () => {
                   const itemSeleccionado = reciboVentaModal;
+                  const tienePagoVinculado = await verificarPagoVinculadoAVenta(itemSeleccionado);
+                  if (tienePagoVinculado) {
+                    mostrarBloqueoVenta('editar');
+                    return;
+                  }
+
                   setReciboVentaModal(null);
                   setEntregaModal(itemSeleccionado);
                   setEditandoEntregaId(itemSeleccionado._id);
@@ -313,13 +339,7 @@ export default function DetalleCliente({
 
                   const tienePagoVinculado = await verificarPagoVinculadoAVenta(itemAEliminar);
                   if (tienePagoVinculado) {
-                    const msg =
-                      'No se puede eliminar la venta debido a que tiene un pago vinculado. Elimina primero el pago vinculado.';
-                    setReciboVentaModal(null);
-                    setAlertaEliminacion(msg);
-                    if (typeof mostrarToast === 'function') {
-                      mostrarToast(msg);
-                    }
+                    mostrarBloqueoVenta('eliminar');
                     return;
                   }
 
@@ -335,15 +355,14 @@ export default function DetalleCliente({
                           api.get('/api/pagos'),
                         ]);
                         verHistorialCliente(clienteActual, resEntregas.data, resPagos.data);
-                        setAlertaEliminacion('');
+                        limpiarAlerta();
                         mostrarToast('Entrega eliminada con éxito');
                       } catch (error) {
                         console.error('Error al eliminar entrega:', error);
                         const msgError =
                           error?.response?.data?.mensaje ||
                           'No se pudo eliminar la entrega.';
-                        setAlertaEliminacion(msgError);
-                        alert(msgError);
+                        mostrarBloqueoVenta('eliminar', msgError);
                       }
                     }
                   });
